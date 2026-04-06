@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+feedparser
+httpx
+pydantic
+python-dateutil
+rapidfuzz
+sqlite-utils
+jinja2
