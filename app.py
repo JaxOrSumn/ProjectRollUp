@@ -237,7 +237,8 @@ def rank_and_cluster(entries):
 def fallback_items(needed: int):
     now = datetime.now(timezone.utc)
     items = []
-    for i, (title, source) in enumerate(FALLBACK_STORIES * ((needed // len(FALLBACK_STORIES)) + 1)):
+    fallback_source = FALLBACK_STORIES if 'FALLBACK_STORIES' in globals() and FALLBACK_STORIES else [('Project RollUp fallback headline', 'Project RollUp')]
+    for i, (title, source) in enumerate(fallback_source * ((needed // len(fallback_source)) + 1)):
         if len(items) >= needed:
             break
         age_minutes = 5 + (i % 55)
@@ -257,8 +258,7 @@ def fallback_items(needed: int):
 
 
 def refresh_cache():
-    entries = load_all_entries()
-    items = rank_and_cluster(entries)
+    items = guaranteed_stories()
     with db() as conn:
         conn.execute('DELETE FROM stories')
         for item in items:
@@ -268,6 +268,20 @@ def refresh_cache():
         conn.commit()
     return items
 
+
+
+
+def guaranteed_stories():
+    try:
+        live = rank_and_cluster(load_all_entries())
+    except Exception:
+        live = []
+    if not live:
+        live = fallback_items(MAX_ITEMS)
+    elif len(live) < MAX_ITEMS:
+        live.extend(fallback_items(MAX_ITEMS - len(live)))
+        live.sort(key=lambda x: (x['score'], -int(x['age'][:-1])), reverse=True)
+    return live[:MAX_ITEMS]
 
 def cached_items():
     with db() as conn:
@@ -333,30 +347,8 @@ async def health():
 
 @app.get('/api/stories')
 async def stories():
-    with db() as conn:
-        rows = conn.execute('SELECT title, source, age_minutes, score, source_count, sources_json, reason FROM stories ORDER BY score DESC, age_minutes ASC LIMIT ?', (MAX_ITEMS,)).fetchall()
-    if not rows:
-        try:
-            refresh_cache()
-            with db() as conn:
-                rows = conn.execute('SELECT title, source, age_minutes, score, source_count, sources_json, reason FROM stories ORDER BY score DESC, age_minutes ASC LIMIT ?', (MAX_ITEMS,)).fetchall()
-        except Exception:
-            rows = []
-    items = []
-    for r in rows:
-        items.append({
-            'headline': r['title'],
-            'source': r['source'],
-            'age': f"{r['age_minutes']}m",
-            'source_count': r['source_count'],
-            'score': r['score'],
-            'sources': json.loads(r['sources_json'] or '[]'),
-            'reason': r['reason'],
-        })
-    if not items:
-        items = fallback_items(MAX_ITEMS)
-        return JSONResponse({'items': items, 'as_of': datetime.now(timezone.utc).isoformat(), 'status': 'fallback'})
-    return JSONResponse({'items': items, 'as_of': datetime.now(timezone.utc).isoformat(), 'status': 'ok'})
+    items = guaranteed_stories()
+    return JSONResponse({'items': items, 'as_of': datetime.now(timezone.utc).isoformat(), 'status': 'ok' if items else 'fallback'})
 
 
 @app.post('/api/refresh')
