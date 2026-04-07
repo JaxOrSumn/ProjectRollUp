@@ -11,6 +11,7 @@ import feedparser
 import httpx
 from dateutil import parser as dtparser
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from rapidfuzz import fuzz
 
@@ -20,6 +21,21 @@ LOOKBACK_MINUTES = 60
 MAX_ITEMS = 100
 
 app = FastAPI(title='Project RollUp')
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        'https://projectrollup.com',
+        'http://projectrollup.com',
+        'https://www.projectrollup.com',
+        'http://www.projectrollup.com',
+        'http://localhost:8791',
+        'http://127.0.0.1:8791',
+    ],
+    allow_credentials=True,
+    allow_methods=['*'],
+    allow_headers=['*'],
+)
+
 ALL_FEEDS = [
     ('Reuters World', 'https://feeds.reuters.com/reuters/worldNews'),
     ('Reuters Business', 'https://feeds.reuters.com/reuters/businessNews'),
