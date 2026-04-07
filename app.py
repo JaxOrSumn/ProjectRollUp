@@ -227,28 +227,33 @@ def rank_and_cluster(entries):
         })
     items.sort(key=lambda x: (x['score'], -int(x['age'][:-1])), reverse=True)
     if len(items) < MAX_ITEMS:
-        needed = MAX_ITEMS - len(items)
-        filler = []
-        now = datetime.now(timezone.utc)
-        for i, (title, source) in enumerate(FALLBACK_STORIES * ((needed // len(FALLBACK_STORIES)) + 1)):
-            if len(filler) >= needed:
-                break
-            age_minutes = 5 + (i % 55)
-            filler.append({
-                'headline': title,
-                'source': source,
-                'age': f"{age_minutes}m",
-                'source_count': 1,
-                'score': round(0.35 + (55 - age_minutes) / 200, 3),
-                'sources': [source],
-                'reason': 'fallback item used because live feed window was sparse',
-                'cluster_id': f'fallback-{i}',
-                'published': now.isoformat(),
-                'url': '',
-            })
-        items.extend(filler)
+        items.extend(fallback_items(MAX_ITEMS - len(items)))
         items.sort(key=lambda x: (x['score'], -int(x['age'][:-1])), reverse=True)
     return items[:MAX_ITEMS]
+
+
+
+
+def fallback_items(needed: int):
+    now = datetime.now(timezone.utc)
+    items = []
+    for i, (title, source) in enumerate(FALLBACK_STORIES * ((needed // len(FALLBACK_STORIES)) + 1)):
+        if len(items) >= needed:
+            break
+        age_minutes = 5 + (i % 55)
+        items.append({
+            'headline': title,
+            'source': source,
+            'age': f'{age_minutes}m',
+            'source_count': 1,
+            'score': round(0.35 + (55 - age_minutes) / 200, 3),
+            'sources': [source],
+            'reason': 'fallback item used because live feed window was sparse',
+            'cluster_id': f'fallback-{i}',
+            'published': now.isoformat(),
+            'url': '',
+        })
+    return items
 
 
 def refresh_cache():
@@ -349,7 +354,8 @@ async def stories():
             'reason': r['reason'],
         })
     if not items:
-        return JSONResponse({'items': [], 'as_of': datetime.now(timezone.utc).isoformat(), 'status': 'empty'})
+        items = fallback_items(MAX_ITEMS)
+        return JSONResponse({'items': items, 'as_of': datetime.now(timezone.utc).isoformat(), 'status': 'fallback'})
     return JSONResponse({'items': items, 'as_of': datetime.now(timezone.utc).isoformat(), 'status': 'ok'})
 
 
