@@ -276,12 +276,30 @@ def guaranteed_stories():
         live = rank_and_cluster(load_all_entries())
     except Exception:
         live = []
-    if not live:
-        live = fallback_items(MAX_ITEMS)
-    elif len(live) < MAX_ITEMS:
-        live.extend(fallback_items(MAX_ITEMS - len(live)))
-        live.sort(key=lambda x: (x['score'], -int(x['age'][:-1])), reverse=True)
-    return live[:MAX_ITEMS]
+
+    # Prefer fresh stories, but if there aren't enough, include older live stories.
+    recent = []
+    older = []
+    for item in live:
+        try:
+            age_m = int(str(item.get('age', '0m')).rstrip('m'))
+        except Exception:
+            age_m = 9999
+        if age_m <= LOOKBACK_MINUTES:
+            recent.append(item)
+        else:
+            older.append(item)
+
+    items = recent + older
+
+    if not items:
+        items = fallback_items(MAX_ITEMS)
+    elif len(items) < MAX_ITEMS:
+        items.extend(fallback_items(MAX_ITEMS - len(items)))
+
+    # keep score order, then age order for stability
+    items.sort(key=lambda x: (x.get('score', 0), -int(str(x.get('age', '0m')).rstrip('m'))), reverse=True)
+    return items[:MAX_ITEMS]
 
 def cached_items():
     with db() as conn:
