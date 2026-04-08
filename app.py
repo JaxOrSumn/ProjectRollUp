@@ -3,7 +3,8 @@ from __future__ import annotations
 import json
 import sqlite3
 import time
-from dataclasses import dataclass
+import re
+from html import unescape
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
@@ -16,10 +17,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse
 from rapidfuzz import fuzz
 
+
 BASE = Path(__file__).resolve().parent
 DB = BASE / 'project_rollup.db'
 LOOKBACK_MINUTES = 60
 MAX_ITEMS = 100
+SUMMARY_WORDS = 400
+MAX_BODY_CHARS = 14000
 
 app = FastAPI(title='Project RollUp')
 app.add_middleware(
@@ -37,7 +41,6 @@ app.add_middleware(
     allow_headers=['*'],
 )
 
-# Curated first-party sources prioritized for reliability and trust.
 PRIMARY_FEEDS = [
     ('Reuters World', 'https://feeds.reuters.com/reuters/worldNews'),
     ('Reuters Business', 'https://feeds.reuters.com/reuters/businessNews'),
@@ -65,7 +68,6 @@ PRIMARY_FEEDS = [
     ('WHO News', 'https://www.who.int/feeds/entity/mediacentre/news/en/rss.xml'),
 ]
 
-# Backup sources used when the ideal 60-minute window is too sparse.
 BACKUP_FEEDS = [
     ('Financial Times World', 'https://www.ft.com/world?format=rss'),
     ('Financial Times Companies', 'https://www.ft.com/companies?format=rss'),
@@ -122,6 +124,7 @@ def init_db():
                 source_count INTEGER,
                 sources_json TEXT,
                 reason TEXT,
+                summary TEXT,
                 created_at TEXT NOT NULL
             )"""
         )
@@ -152,6 +155,94 @@ def cluster_key(title: str) -> str:
     return normalize_title(title)[:80]
 
 
+def word_count(text: str) -> int:
+    return len([w for w in text.split() if w.strip()])
+
+
+def extract_meta_summary(entry) -> str:
+    parts = []
+    for key in ('summary', 'description', 'subtitle', 'content'):
+        value = entry.get(key)
+        if isinstance(value, list):
+            for item in value:
+                if isinstance(item, dict):
+                    parts.append(str(item.get('value') or '').strip())
+                else:
+                    parts.append(str(item).strip())
+        elif isinstance(value, dict):
+            parts.append(str(value.get('value') or '').strip())
+        elif value:
+            parts.append(str(value).strip())
+    return ' '.join(p for p in parts if p)
+
+
+def clean_text(text: str) -> str:
+    text = re.sub(r'<[^>]+>', ' ', text or '')
+    text = re.sub(r'\s+', ' ', text)
+    return text.strip()
+
+
+def extract_article_text(url: str) -> str:
+    if not url:
+        return ''
+    try:
+        with httpx.Client(follow_redirects=True, timeout=8.0, headers={'User-Agent': 'Mozilla/5.0'}) as client:
+            res = client.get(url)
+            res.raise_for_status()
+            text = res.text
+    except Exception:
+        return ''
+
+    title_match = re.search(r'<title[^>]*>(.*?)</title>', text, flags=re.I | re.S)
+    title = clean_text(unescape(title_match.group(1))) if title_match else ''
+    paragraphs = re.findall(r'<p[^>]*>(.*?)</p>', text, flags=re.I | re.S)
+    cleaned = []
+    for ptag in paragraphs:
+        chunk = clean_text(unescape(re.sub(r'<[^>]+>', ' ', ptag)))
+        if len(chunk) >= 40:
+            cleaned.append(chunk)
+    body = ' '.join(cleaned[:30])
+    return clean_text(f'{title}. {body}')[:MAX_BODY_CHARS]
+
+
+def summarize_text(title: str, source: str, body: str, meta: str, source_count: int, age_minutes: int, score: float) -> str:
+    body = clean_text(body)
+    meta = clean_text(meta)
+    source_phrase = f'{source}' if source_count == 1 else f'{source} and {source_count - 1} other source(s)'
+
+    sentences = []
+    for chunk in re.split(r'(?<=[.!?])\s+', f'{meta}. {body}'):
+        chunk = chunk.strip()
+        if chunk and chunk not in sentences:
+            sentences.append(chunk)
+
+    selected = []
+    wc = 0
+    for sent in sentences:
+        sent_words = word_count(sent)
+        if wc + sent_words > SUMMARY_WORDS:
+            break
+        selected.append(sent)
+        wc += sent_words
+        if wc >= max(180, SUMMARY_WORDS - 60):
+            break
+
+    if not selected:
+        selected = [meta or body or title]
+
+    intro = f'{title} is being tracked by Project RollUp from {source_phrase}. It is {age_minutes} minutes old and currently carries a relevance score of {score:.3f}. '
+    outro = 'This write-up stays within the facts available from the story metadata and feed text and avoids speculation.'
+    summary = intro + ' '.join(selected)
+    if word_count(summary + ' ' + outro) <= SUMMARY_WORDS:
+        summary = summary + ' ' + outro
+    return trim_words(summary, SUMMARY_WORDS)
+
+
+def trim_words(text: str, limit: int = SUMMARY_WORDS) -> str:
+    words = text.split()
+    return ' '.join(words[:limit])
+
+
 def fetch_feed(name: str, url: str):
     try:
         data = feedparser.parse(url)
@@ -164,16 +255,14 @@ def fetch_feed(name: str, url: str):
             age_minutes = int((datetime.now(timezone.utc) - published).total_seconds() / 60)
             if age_minutes < 0:
                 age_minutes = 0
-            entries.append(
-                {
-                    'title': title,
-                    'source': name,
-                    'url': entry.get('link', ''),
-                    'published': published.isoformat(),
-                    'age_minutes': age_minutes,
-                    'cluster_id': cluster_key(title),
-                }
-            )
+            article_url = entry.get('link', '')
+            meta_summary = extract_meta_summary(entry)
+            content_text = clean_text(meta_summary)
+            if article_url:
+                extracted = extract_article_text(article_url)
+                if extracted:
+                    content_text = extracted
+            entries.append({'title': title, 'source': name, 'url': article_url, 'published': published.isoformat(), 'age_minutes': age_minutes, 'cluster_id': cluster_key(title), 'meta_summary': meta_summary, 'content_text': content_text})
         return entries
     except Exception:
         return []
@@ -213,22 +302,8 @@ def dedupe_and_rank(entries):
         score = round((freshness * 0.5 + diversity * 0.35 + cluster_bonus * 0.15), 3)
         bucket = 'fresh' if age_minutes <= 60 else 'older'
         reason = f'freshness={freshness:.2f}; source_count={source_count}; group_size={len(group)}; diversity={diversity:.2f}; bucket={bucket}'
-        items.append(
-            {
-                'headline': title,
-                'source': group[0]['source'],
-                'age': f'{age_minutes}m',
-                'age_minutes': age_minutes,
-                'freshness_bucket': bucket,
-                'source_count': source_count,
-                'score': score,
-                'sources': source_names,
-                'reason': reason,
-                'cluster_id': group[0]['cluster_id'],
-                'published': group[0]['published'],
-                'url': group[0]['url'],
-            }
-        )
+        summary = summarize_text(title, group[0]['source'], ' '.join(g.get('content_text', '') for g in group), ' '.join(g.get('meta_summary', '') for g in group), source_count, age_minutes, score)
+        items.append({'headline': title, 'source': group[0]['source'], 'age': f'{age_minutes}m', 'age_minutes': age_minutes, 'freshness_bucket': bucket, 'source_count': source_count, 'score': score, 'sources': source_names, 'reason': reason, 'summary': summary, 'cluster_id': group[0]['cluster_id'], 'published': group[0]['published'], 'url': group[0]['url']})
 
     items.sort(key=lambda x: (x['score'], -x['age_minutes']), reverse=True)
     return items
@@ -242,49 +317,26 @@ def fallback_items(needed: int, bucket='fallback'):
         if len(items) >= needed:
             break
         age_minutes = 5 + (i % 55)
-        items.append(
-            {
-                'headline': title,
-                'source': source,
-                'age': f'{age_minutes}m',
-                'age_minutes': age_minutes,
-                'freshness_bucket': bucket,
-                'source_count': 1,
-                'score': round(0.35 + (55 - age_minutes) / 200, 3),
-                'sources': [source],
-                'reason': 'fallback item used because live feed window was sparse',
-                'cluster_id': f'fallback-{i}',
-                'published': now.isoformat(),
-                'url': '',
-            }
-        )
+        score = round(0.35 + (55 - age_minutes) / 200, 3)
+        summary = summarize_text(title, source, title, '', 1, age_minutes, score)
+        items.append({'headline': title, 'source': source, 'age': f'{age_minutes}m', 'age_minutes': age_minutes, 'freshness_bucket': bucket, 'source_count': 1, 'score': score, 'sources': [source], 'reason': 'fallback item used because live feed window was sparse', 'summary': summary, 'cluster_id': f'fallback-{i}', 'published': now.isoformat(), 'url': ''})
     return items
 
 
 def guaranteed_stories():
-    # Step 1: try all primary feeds for the best chance at recent stories.
     live_primary = dedupe_and_rank(load_entries(PRIMARY_FEEDS))
     recent = [x for x in live_primary if x['age_minutes'] <= LOOKBACK_MINUTES]
     older = [x for x in live_primary if x['age_minutes'] > LOOKBACK_MINUTES]
-
     items = recent + older
-
-    # Step 2: widen the window in controlled steps if still sparse.
     if len(items) < MAX_ITEMS:
         live_backup = dedupe_and_rank(load_entries(BACKUP_FEEDS))
         items.extend(live_backup)
         items = dedupe_and_rank(items)
-
-    # Step 3: if still below minimum, inject clearly labeled older/fallback items.
     if len(items) < MAX_ITEMS:
         items.extend(fallback_items(MAX_ITEMS - len(items)))
         items = dedupe_and_rank(items)
-
-    # Final guardrail: always return at least 100.
     if len(items) < MAX_ITEMS:
         items.extend(fallback_items(MAX_ITEMS - len(items)))
-
-    # Stable sort: relevance first, then age.
     items.sort(key=lambda x: (x.get('score', 0), -x.get('age_minutes', 9999)), reverse=True)
     return items[:MAX_ITEMS]
 
@@ -294,48 +346,16 @@ def refresh_cache():
     with db() as conn:
         conn.execute('DELETE FROM stories')
         for item in items:
-            conn.execute(
-                """INSERT INTO stories (title, source, url, published, age_minutes, freshness_bucket, cluster_id, score, source_count, sources_json, reason, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (
-                    item['headline'],
-                    item['source'],
-                    item.get('url', ''),
-                    item['published'],
-                    int(item['age_minutes']),
-                    item.get('freshness_bucket', 'fallback'),
-                    item['cluster_id'],
-                    item['score'],
-                    item['source_count'],
-                    json.dumps(item['sources']),
-                    item['reason'],
-                    datetime.now(timezone.utc).isoformat(),
-                ),
-            )
+            conn.execute("""INSERT INTO stories (title, source, url, published, age_minutes, freshness_bucket, cluster_id, score, source_count, sources_json, reason, summary, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", (item['headline'], item['source'], item.get('url', ''), item['published'], int(item['age_minutes']), item.get('freshness_bucket', 'fallback'), item['cluster_id'], item['score'], item['source_count'], json.dumps(item['sources']), item['reason'], item.get('summary', ''), datetime.now(timezone.utc).isoformat()))
         conn.commit()
     return items
 
 
 def cached_items():
     with db() as conn:
-        rows = conn.execute(
-            'SELECT title, source, age_minutes, freshness_bucket, score, source_count, sources_json, reason FROM stories ORDER BY score DESC, age_minutes ASC LIMIT ?',
-            (MAX_ITEMS,),
-        ).fetchall()
-    return [
-        {
-            'headline': r['title'],
-            'source': r['source'],
-            'age': f"{r['age_minutes']}m",
-            'age_minutes': r['age_minutes'],
-            'freshness_bucket': r['freshness_bucket'],
-            'source_count': r['source_count'],
-            'score': r['score'],
-            'sources': json.loads(r['sources_json'] or '[]'),
-            'reason': r['reason'],
-        }
-        for r in rows
-    ]
+        rows = conn.execute('SELECT title, source, age_minutes, freshness_bucket, score, source_count, sources_json, reason, summary FROM stories ORDER BY score DESC, age_minutes ASC LIMIT ?', (MAX_ITEMS,)).fetchall()
+    return [{'headline': r['title'], 'source': r['source'], 'age': f"{r['age_minutes']}m", 'age_minutes': r['age_minutes'], 'freshness_bucket': r['freshness_bucket'], 'source_count': r['source_count'], 'score': r['score'], 'sources': json.loads(r['sources_json'] or '[]'), 'reason': r['reason'], 'summary': r['summary'] or ''} for r in rows]
 
 
 @app.on_event('startup')
@@ -361,34 +381,36 @@ async def stories():
         if len(items) < MAX_ITEMS:
             items.extend(fallback_items(MAX_ITEMS - len(items)))
     items = items[:MAX_ITEMS]
-    return JSONResponse(
-        {
-            'items': items,
-            'as_of': datetime.now(timezone.utc).isoformat(),
-            'status': 'ok' if items else 'fallback',
-            'count': len(items),
-            'policy': {
-                'fresh_window_minutes': LOOKBACK_MINUTES,
-                'minimum_display_count': MAX_ITEMS,
-                'fallback_order': ['fresh', 'older', 'backup_feeds', 'labeled_older_or_fallback'],
-            },
-        }
-    )
+    return JSONResponse({'items': items, 'as_of': datetime.now(timezone.utc).isoformat(), 'status': 'ok' if items else 'fallback', 'count': len(items), 'policy': {'fresh_window_minutes': LOOKBACK_MINUTES, 'minimum_display_count': MAX_ITEMS, 'fallback_order': ['fresh', 'older', 'backup_feeds', 'labeled_older_or_fallback']}})
+
+
+@app.get('/api/story')
+async def story(headline: str):
+    try:
+        items = refresh_cache()
+    except Exception:
+        items = cached_items()
+    target = None
+    nh = normalize_title(headline)
+    for item in items:
+        if normalize_title(item['headline']) == nh or fuzz.ratio(item['headline'], headline) >= 90:
+            target = item
+            break
+    if target is None:
+        target = {'headline': headline, 'source': 'Project RollUp', 'age_minutes': 0, 'score': 0.0, 'sources': ['Project RollUp'], 'reason': 'headline not found in current cache', 'summary': summarize_text(headline, 'Project RollUp', headline, '', 1, 0, 0.0)}
+    if target.get('summary'):
+        target['summary'] = trim_words(target['summary'], SUMMARY_WORDS)
+    return JSONResponse(target)
 
 
 @app.get('/api/health')
 async def health():
-    return JSONResponse(
-        {
-            'primary_feeds': len(PRIMARY_FEEDS),
-            'backup_feeds': len(BACKUP_FEEDS),
-            'lookback_minutes': LOOKBACK_MINUTES,
-            'minimum_display_count': MAX_ITEMS,
-        }
-    )
+    return JSONResponse({'primary_feeds': len(PRIMARY_FEEDS), 'backup_feeds': len(BACKUP_FEEDS), 'lookback_minutes': LOOKBACK_MINUTES, 'minimum_display_count': MAX_ITEMS})
 
 
 @app.post('/api/refresh')
 async def api_refresh():
     items = refresh_cache()
     return JSONResponse({'items': len(items), 'as_of': datetime.now(timezone.utc).isoformat()})
+EOF
+mv /tmp/new_app.py app.py
