@@ -196,6 +196,30 @@ def clean_text(text: str) -> str:
     return text.strip()
 
 
+_NAV_JUNK = re.compile(
+    r'navigation menu|show more|sign up|click here|cookie|subscribe|'
+    r'advertisement|follow us|share this|whatsapp|copylink|caret-left|'
+    r'caret-right|css-\w+\{|font-size|font-weight|@media|javascript',
+    re.I,
+)
+
+
+def _is_junk_paragraph(text: str) -> bool:
+    """Return True if a paragraph looks like nav/UI noise rather than article content."""
+    if len(text) < 80:
+        return True
+    if _NAV_JUNK.search(text):
+        return True
+    # Reject if the paragraph is mostly short tokens (nav labels, button text)
+    words = text.split()
+    if len(words) < 8:
+        return True
+    short = sum(1 for w in words if len(w) <= 3)
+    if short / len(words) > 0.6:
+        return True
+    return False
+
+
 def extract_article_text(url: str) -> str:
     if not url:
         return ''
@@ -207,28 +231,49 @@ def extract_article_text(url: str) -> str:
     except Exception:
         return ''
 
-    title_match = re.search(r'<title[^>]*>(.*?)</title>', text, flags=re.I | re.S)
-    title = clean_text(unescape(title_match.group(1))) if title_match else ''
-    paragraphs = re.findall(r'<p[^>]*>(.*?)</p>', text, flags=re.I | re.S)
+    # Prefer content inside <article> or <main> to avoid nav/sidebar noise
+    scoped = re.search(r'<(?:article|main)[^>]*>(.*?)</(?:article|main)>', text, flags=re.I | re.S)
+    search_area = scoped.group(1) if scoped else text
+
+    paragraphs = re.findall(r'<p[^>]*>(.*?)</p>', search_area, flags=re.I | re.S)
     cleaned = []
     for ptag in paragraphs:
         chunk = clean_text(unescape(re.sub(r'<[^>]+>', ' ', ptag)))
-        if len(chunk) >= 40:
+        if not _is_junk_paragraph(chunk):
             cleaned.append(chunk)
-    body = ' '.join(cleaned[:30])
-    return clean_text(f'{title}. {body}')[:MAX_BODY_CHARS]
+        if len(cleaned) >= 25:
+            break
+
+    return clean_text(' '.join(cleaned))[:MAX_BODY_CHARS]
+
+
+_BOILERPLATE = re.compile(
+    r'is being tracked by project rollup|'
+    r'this write-up stays within|'
+    r'avoids speculation|'
+    r'currently carries a relevance score',
+    re.I,
+)
 
 
 def summarize_text(title: str, source: str, body: str, meta: str, source_count: int, age_minutes: int, score: float) -> str:
     body = clean_text(body)
     meta = clean_text(meta)
     source_phrase = f'{source}' if source_count == 1 else f'{source} and {source_count - 1} other source(s)'
+    title_norm = normalize_title(title).lower()
 
     sentences = []
     for chunk in re.split(r'(?<=[.!?])\s+', f'{meta}. {body}'):
         chunk = chunk.strip()
-        if chunk and chunk not in sentences:
-            sentences.append(chunk)
+        if not chunk or chunk in sentences:
+            continue
+        # Skip any sentence that is boilerplate from a previous summary pass
+        if _BOILERPLATE.search(chunk):
+            continue
+        # Skip sentences that are essentially just the headline repeated
+        if normalize_title(chunk).lower() == title_norm:
+            continue
+        sentences.append(chunk)
 
     selected = []
     wc = 0
@@ -581,7 +626,7 @@ async def story(id: str = None, headline: str = None):
                 target['headline'],
                 target['source'],
                 extracted,
-                target.get('summary', ''),
+                '',  # Don't feed old summary back as meta — causes duplicate intro and misplaced outro
                 target.get('source_count', 1),
                 target.get('age_minutes', 0),
                 target.get('score', 0.0),
