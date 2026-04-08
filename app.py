@@ -191,7 +191,8 @@ def extract_meta_summary(entry) -> str:
 
 
 def clean_text(text: str) -> str:
-    text = re.sub(r'<[^>]+>', ' ', text or '')
+    text = unescape(text or '')           # decode &#8220; &quot; etc before anything else
+    text = re.sub(r'<[^>]+>', ' ', text)  # strip remaining HTML tags
     text = re.sub(r'\s+', ' ', text)
     return text.strip()
 
@@ -263,16 +264,25 @@ def summarize_text(title: str, source: str, body: str, meta: str, source_count: 
     title_norm = normalize_title(title).lower()
 
     sentences = []
-    for chunk in re.split(r'(?<=[.!?])\s+', f'{meta}. {body}'):
+    # Split on sentence-ending punctuation AND semicolons (handles "Headlines: A, B; C, D" lists)
+    raw_chunks = re.split(r'(?<=[.!?])\s+|;\s*', f'{meta}. {body}')
+    for chunk in raw_chunks:
         chunk = chunk.strip()
         if not chunk or chunk in sentences:
             continue
-        # Skip any sentence that is boilerplate from a previous summary pass
+        # Skip boilerplate from a previous summary pass
         if _BOILERPLATE.search(chunk):
             continue
         # Skip sentences that are essentially just the headline repeated
         if normalize_title(chunk).lower() == title_norm:
             continue
+        # Skip comma-dense chunks — these are headline list dumps (e.g. Democracy Now)
+        if chunk.count(',') > 4:
+            continue
+        # Cap runaway sentences at 45 words so one long chunk can't consume the whole summary
+        words = chunk.split()
+        if len(words) > 45:
+            chunk = ' '.join(words[:45])
         sentences.append(chunk)
 
     selected = []
@@ -344,7 +354,8 @@ _TAG_RULES: list[tuple[str, re.Pattern]] = [
 
 def classify_tags(headline: str, summary: str) -> list[str]:
     text = f'{headline} {summary}'
-    return [tag for tag, pattern in _TAG_RULES if pattern.search(text)]
+    tags = [tag for tag, pattern in _TAG_RULES if pattern.search(text)]
+    return tags if tags else ['General']
 
 
 def human_reason(freshness: float, source_count: int, group_size: int, age_minutes: int, bucket: str) -> str:
