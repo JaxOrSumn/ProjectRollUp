@@ -1,0 +1,334 @@
+/* ── Story / Signal Card ────────────────────────────── */
+.signal-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid transparent;
+  border-radius: var(--radius-md);
+  padding: 16px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition);
+}
+
+.signal-card:hover {
+  border-left-color: var(--color-green);
+  background: var(--color-surface-2);
+}
+
+.signal-card.featured {
+  border-left-color: var(--color-gold);
+}
+
+.signal-card.top-signal {
+  border-left-color: var(--color-green);
+}
+
+.card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.card-rank {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-slate);
+  min-width: 32px;
+}
+
+.card-headline {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-text);
+}
+
+.card-time {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-slate);
+  white-space: nowrap;
+}
+
+.card-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.card-source {
+  font-size: 13px;
+  color: var(--color-slate);
+}
+
+.card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* ── Status Badge ───────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 2px;
+  font-weight: 600;
+}
+
+.badge-green {
+  background: var(--color-green);
+  color: #000;
+}
+
+.badge-amber {
+  background: var(--color-gold);
+  color: #000;
+}
+
+.badge-red {
+  background: var(--color-warning);
+  color: #fff;
+}
+
+.badge-slate {
+  background: var(--color-surface-2);
+  color: var(--color-slate);
+  border: 1px solid var(--color-border);
+}
+
+/* ── Source Count Badge ─────────────────────────────── */
+.source-count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(53, 255, 122, 0.12);
+  color: var(--color-green);
+  border: 1px solid rgba(53, 255, 122, 0.25);
+  padding: 2px 7px;
+  border-radius: 2px;
+  letter-spacing: 0.06em;
+}
+
+/* ── Confidence Bar ─────────────────────────────────── */
+.confidence-bar {
+  width: 80px;
+  height: 3px;
+  background: var(--color-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.confidence-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+/* ── Buttons ────────────────────────────────────────── */
+.btn {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid;
+  cursor: pointer;
+  transition: all var(--transition);
+  background: transparent;
+}
+
+.btn-primary {
+  border-color: var(--color-green);
+  color: var(--color-green);
+}
+
+.btn-primary:hover {
+  background: var(--color-green);
+  color: #000;
+}
+
+.btn-ghost {
+  border-color: var(--color-border);
+  color: var(--color-slate);
+}
+
+.btn-ghost:hover {
+  border-color: var(--color-slate);
+  color: var(--color-text);
+}
+
+/* ── Tier Badges ────────────────────────────────────── */
+.tier {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 2px;
+  border: 1px solid;
+}
+
+.tier-recruit {
+  border-color: var(--color-slate);
+  color: var(--color-slate);
+}
+
+.tier-operator {
+  border-color: var(--color-green);
+  color: var(--color-green);
+}
+
+.tier-commander {
+  border-color: var(--color-gold);
+  color: var(--color-gold);
+}
+
+.tier-command-staff {
+  border-color: var(--color-gold);
+  color: #000;
+  background: var(--color-gold);
+}
+
+/* ── System Status Rows ─────────────────────────────── */
+.status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.status-row:last-child {
+  border-bottom: none;
+}
+
+.status-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-slate);
+}
+
+.status-value {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ── Source Health List ─────────────────────────────── */
+.source-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.source-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  padding: 4px 0;
+}
+
+.source-name {
+  color: var(--color-text);
+  flex: 1;
+}
+
+.source-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-slate);
+}
+
+/* ── Coverage Theater (Tag Pills) ───────────────────── */
+.tag-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tag-pill {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 2px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-2);
+  color: var(--color-slate);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.tag-pill:hover {
+  border-color: var(--color-green);
+  color: var(--color-green);
+}
+
+.tag-pill.active {
+  border-color: var(--color-green);
+  background: rgba(53, 255, 122, 0.12);
+  color: var(--color-green);
+}
+
+/* ── Briefing Modal Content ─────────────────────────── */
+.briefing-headline {
+  font-family: var(--font-mono);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-green);
+  margin-bottom: 24px;
+  line-height: 1.3;
+}
+
+.briefing-divider {
+  height: 1px;
+  background: var(--color-border);
+  margin: 20px 0;
+}
+
+.briefing-section {
+  margin-bottom: 16px;
+}
+
+.briefing-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-slate);
+  margin-bottom: 6px;
+}
+
+.briefing-value {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-text);
+}
+
+.briefing-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 24px;
+}

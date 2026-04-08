@@ -1,0 +1,48 @@
+/* ── Reset ──────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; scroll-behavior: smooth; }
+body {
+  background-color: var(--color-base);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Brand Tokens ───────────────────────────────────── */
+:root {
+  --color-base: #0b0f0b;
+  --color-surface: #111611;
+  --color-surface-2: #171e17;
+  --color-border: #1f2b1f;
+  --color-green: #35ff7a;
+  --color-deep-green: #1f8f4a;
+  --color-gold: #c7a34b;
+  --color-slate: #8a9490;
+  --color-text: #d4dbd4;
+  --color-warning: #d95c5c;
+
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+
+  --radius-sm: 3px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  --transition: 150ms ease;
+}
+
+/* ── Typography ─────────────────────────────────────── */
+h1, h2, h3, .label, .panel-title, .ui-copy {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.mono { font-family: var(--font-mono); }
+a { color: var(--color-green); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ── Scrollbar ──────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--color-surface); }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 2px; }
