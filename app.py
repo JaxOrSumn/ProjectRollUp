@@ -24,12 +24,12 @@ warnings.filterwarnings('ignore', message='.*tzname.*')
 
 BASE = Path(__file__).resolve().parent
 DB = BASE / 'project_rollup.db'
-LOOKBACK_MINUTES = 60
+LOOKBACK_MINUTES = 180  # Increased from 60 to get more stories
 MAX_ITEMS = 100
 SUMMARY_WORDS = 400
 MAX_BODY_CHARS = 14000
-MAX_FEEDS_PER_CYCLE = 15  # Limit concurrent feed fetches to reduce memory
-FEED_TIMEOUT = 10  # Timeout per feed request in seconds
+MAX_FEEDS_PER_CYCLE = 20  # Increased from 15 to get more coverage
+FEED_TIMEOUT = 15  # Increased from 10 seconds
 
 app = FastAPI(title='Project RollUp')
 app.add_middleware(
@@ -252,10 +252,14 @@ def trim_words(text: str, limit: int = SUMMARY_WORDS) -> str:
 
 def fetch_feed(name: str, url: str):
     try:
-        # Reduce entries per feed from 40 to 20 to save memory
-        data = feedparser.parse(url, timeout=FEED_TIMEOUT)
+        # Fetch with httpx for timeout control, then parse with feedparser
+        with httpx.Client(timeout=FEED_TIMEOUT) as client:
+            response = client.get(url, follow_redirects=True)
+            response.raise_for_status()
+            data = feedparser.parse(response.content)
+        
         entries = []
-        for entry in data.entries[:20]:  # Reduced from 40
+        for entry in data.entries[:20]:  # Reduced from 40 to save memory
             title = entry.get('title', '').strip()
             if not title:
                 continue
@@ -267,13 +271,10 @@ def fetch_feed(name: str, url: str):
             meta_summary = extract_meta_summary(entry)
             content_text = clean_text(meta_summary)
             # Skip article extraction to reduce memory - just use feed summary
-            # if article_url:
-            #     extracted = extract_article_text(article_url)
-            #     if extracted:
-            #         content_text = extracted
             entries.append({'title': title, 'source': name, 'url': article_url, 'published': published.isoformat(), 'age_minutes': age_minutes, 'cluster_id': cluster_key(title), 'meta_summary': meta_summary, 'content_text': content_text})
         return entries
-    except Exception:
+    except Exception as e:
+        print(f"Feed fetch failed for {name}: {e}")
         return []
 
 
@@ -336,24 +337,27 @@ def fallback_items(needed: int, bucket='fallback'):
 
 def guaranteed_stories(page: int = 1):
     live_primary = dedupe_and_rank(load_entries(PRIMARY_FEEDS))
-    recent = [x for x in live_primary if x['age_minutes'] <= LOOKBACK_MINUTES]
-    older = [x for x in live_primary if x['age_minutes'] > LOOKBACK_MINUTES]
-    items = recent + older
-    if len(items) < MAX_ITEMS or page > 1:
+    print(f"Primary feeds returned {len(live_primary)} stories")
+    
+    # Don't filter by age - take everything we can get
+    items = live_primary
+    
+    # Only fetch backup feeds if we're really short
+    if len(items) < 50 or page > 1:
         live_backup = dedupe_and_rank(load_entries(BACKUP_FEEDS))
+        print(f"Backup feeds returned {len(live_backup)} stories")
         items.extend(live_backup)
         items = dedupe_and_rank(items)
-    if len(items) < MAX_ITEMS:
+    
+    print(f"Total real stories before fallbacks: {len(items)}")
+    
+    # Only add fallbacks if we're really desperate
+    if len(items) < 30:
+        print(f"WARNING: Only {len(items)} real stories found, adding fallbacks")
         items.extend(fallback_items(MAX_ITEMS - len(items)))
-        items = dedupe_and_rank(items)
-    if len(items) < MAX_ITEMS:
-        items.extend(fallback_items(MAX_ITEMS - len(items)))
-    if len(items) < MAX_ITEMS:
-        items.extend(fallback_items(MAX_ITEMS - len(items), bucket='older'))
+    
     items.sort(key=lambda x: (x.get('score', 0), -x.get('age_minutes', 9999)), reverse=True)
-    while len(items) < MAX_ITEMS:
-        items.extend(fallback_items(MAX_ITEMS - len(items), bucket='older'))
-    return items[:max(MAX_ITEMS, 100)]
+    return items[:MAX_ITEMS]
 
 
 def refresh_cache(page: int = 1):
