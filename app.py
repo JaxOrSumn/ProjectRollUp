@@ -24,12 +24,12 @@ warnings.filterwarnings('ignore', message='.*tzname.*')
 
 BASE = Path(__file__).resolve().parent
 DB = BASE / 'project_rollup.db'
-LOOKBACK_MINUTES = 180  # Increased from 60 to get more stories
+LOOKBACK_MINUTES = 60
 MAX_ITEMS = 100
 SUMMARY_WORDS = 400
 MAX_BODY_CHARS = 14000
-MAX_FEEDS_PER_CYCLE = 20  # Increased from 15 to get more coverage
-FEED_TIMEOUT = 15  # Increased from 10 seconds
+MAX_FEEDS_PER_CYCLE = 15  # Limit concurrent feed fetches to reduce memory
+FEED_TIMEOUT = 10  # Timeout per feed request in seconds
 
 app = FastAPI(title='Project RollUp')
 app.add_middleware(
@@ -252,14 +252,10 @@ def trim_words(text: str, limit: int = SUMMARY_WORDS) -> str:
 
 def fetch_feed(name: str, url: str):
     try:
-        # Fetch with httpx for timeout control, then parse with feedparser
-        with httpx.Client(timeout=FEED_TIMEOUT) as client:
-            response = client.get(url, follow_redirects=True)
-            response.raise_for_status()
-            data = feedparser.parse(response.content)
-        
+        # Reduce entries per feed from 40 to 20 to save memory
+        data = feedparser.parse(url, timeout=FEED_TIMEOUT)
         entries = []
-        for entry in data.entries[:20]:  # Reduced from 40 to save memory
+        for entry in data.entries[:20]:  # Reduced from 40
             title = entry.get('title', '').strip()
             if not title:
                 continue
@@ -271,10 +267,13 @@ def fetch_feed(name: str, url: str):
             meta_summary = extract_meta_summary(entry)
             content_text = clean_text(meta_summary)
             # Skip article extraction to reduce memory - just use feed summary
+            # if article_url:
+            #     extracted = extract_article_text(article_url)
+            #     if extracted:
+            #         content_text = extracted
             entries.append({'title': title, 'source': name, 'url': article_url, 'published': published.isoformat(), 'age_minutes': age_minutes, 'cluster_id': cluster_key(title), 'meta_summary': meta_summary, 'content_text': content_text})
         return entries
-    except Exception as e:
-        print(f"Feed fetch failed for {name}: {e}")
+    except Exception:
         return []
 
 
@@ -337,27 +336,24 @@ def fallback_items(needed: int, bucket='fallback'):
 
 def guaranteed_stories(page: int = 1):
     live_primary = dedupe_and_rank(load_entries(PRIMARY_FEEDS))
-    print(f"Primary feeds returned {len(live_primary)} stories")
-    
-    # Don't filter by age - take everything we can get
-    items = live_primary
-    
-    # Only fetch backup feeds if we're really short
-    if len(items) < 50 or page > 1:
+    recent = [x for x in live_primary if x['age_minutes'] <= LOOKBACK_MINUTES]
+    older = [x for x in live_primary if x['age_minutes'] > LOOKBACK_MINUTES]
+    items = recent + older
+    if len(items) < MAX_ITEMS or page > 1:
         live_backup = dedupe_and_rank(load_entries(BACKUP_FEEDS))
-        print(f"Backup feeds returned {len(live_backup)} stories")
         items.extend(live_backup)
         items = dedupe_and_rank(items)
-    
-    print(f"Total real stories before fallbacks: {len(items)}")
-    
-    # Only add fallbacks if we're really desperate
-    if len(items) < 30:
-        print(f"WARNING: Only {len(items)} real stories found, adding fallbacks")
+    if len(items) < MAX_ITEMS:
         items.extend(fallback_items(MAX_ITEMS - len(items)))
-    
+        items = dedupe_and_rank(items)
+    if len(items) < MAX_ITEMS:
+        items.extend(fallback_items(MAX_ITEMS - len(items)))
+    if len(items) < MAX_ITEMS:
+        items.extend(fallback_items(MAX_ITEMS - len(items), bucket='older'))
     items.sort(key=lambda x: (x.get('score', 0), -x.get('age_minutes', 9999)), reverse=True)
-    return items[:MAX_ITEMS]
+    while len(items) < MAX_ITEMS:
+        items.extend(fallback_items(MAX_ITEMS - len(items), bucket='older'))
+    return items[:max(MAX_ITEMS, 100)]
 
 
 def refresh_cache(page: int = 1):
@@ -373,8 +369,8 @@ def refresh_cache(page: int = 1):
 
 def cached_items():
     with db() as conn:
-        rows = conn.execute('SELECT title, source, age_minutes, freshness_bucket, score, source_count, sources_json, reason, summary FROM stories ORDER BY score DESC, age_minutes ASC LIMIT ?', (MAX_ITEMS,)).fetchall()
-    return [{'headline': r['title'], 'source': r['source'], 'age': f"{r['age_minutes']}m", 'age_minutes': r['age_minutes'], 'freshness_bucket': r['freshness_bucket'], 'source_count': r['source_count'], 'score': r['score'], 'sources': json.loads(r['sources_json'] or '[]'), 'reason': r['reason'], 'summary': r['summary'] or ''} for r in rows]
+        rows = conn.execute('SELECT title, source, url, age_minutes, freshness_bucket, score, source_count, sources_json, reason, summary FROM stories ORDER BY score DESC, age_minutes ASC LIMIT ?', (MAX_ITEMS,)).fetchall()
+    return [{'headline': r['title'], 'source': r['source'], 'url': r['url'] or '', 'age': f"{r['age_minutes']}m", 'age_minutes': r['age_minutes'], 'freshness_bucket': r['freshness_bucket'], 'source_count': r['source_count'], 'score': r['score'], 'sources': json.loads(r['sources_json'] or '[]'), 'reason': r['reason'], 'summary': r['summary'] or ''} for r in rows]
 
 
 @app.on_event('startup')
@@ -444,11 +440,34 @@ async def story(id: str = None, headline: str = None):
                 break
     
     if target is None:
-        target = {'headline': search_term or 'Unknown', 'source': 'Project RollUp', 'age_minutes': 0, 'score': 0.0, 'sources': ['Project RollUp'], 'reason': 'headline not found in current cache', 'summary': summarize_text(search_term or 'Unknown', 'Project RollUp', search_term or 'Unknown', '', 1, 0, 0.0)}
-    
+        target = {'headline': search_term or 'Unknown', 'source': 'Project RollUp', 'url': '', 'age_minutes': 0, 'score': 0.0, 'sources': ['Project RollUp'], 'reason': 'headline not found in current cache', 'summary': summarize_text(search_term or 'Unknown', 'Project RollUp', search_term or 'Unknown', '', 1, 0, 0.0)}
+
+    # Enrich summary with full article text on demand.
+    # Skip if summary is already long (previously enriched and cached).
+    url = target.get('url', '')
+    if url and word_count(target.get('summary', '')) < 200:
+        extracted = extract_article_text(url)
+        if extracted:
+            target['summary'] = summarize_text(
+                target['headline'],
+                target['source'],
+                extracted,
+                target.get('summary', ''),
+                target.get('source_count', 1),
+                target.get('age_minutes', 0),
+                target.get('score', 0.0),
+            )
+            # Cache enriched summary back to DB so repeat clicks are instant.
+            try:
+                with db() as conn:
+                    conn.execute('UPDATE stories SET summary = ? WHERE title = ?', (target['summary'], target['headline']))
+                    conn.commit()
+            except Exception:
+                pass
+
     if target.get('summary'):
         target['summary'] = trim_words(target['summary'], SUMMARY_WORDS)
-    
+
     return JSONResponse(target)
 
 
