@@ -1,0 +1,30 @@
+Project RollUp — future agent quick guide
+
+Use the root-level site files.
+Do not assume /web is the live app.
+If the user mentions public_html, treat it as the packaging/output folder.
+
+Main goals already implemented:
+- green CRT news UI
+- 100+ headline guarantee
+- deduped source-diverse feed
+- bottom-right location globe
+- fact-based 400-word write-ups
+- responsive desktop/tablet focus, globe hidden on mobile
+
+Key files:
+- app.py
+- index.html
+- script.js
+- styles.css
+- public_html/ (packaged copy when requested)
+
+Before shipping:
+- run python3 -m py_compile app.py
+- run node --check script.js
+- ensure 100 headlines still render
+- ensure globe hides below mobile breakpoint
+- ensure summary modal opens/closes cleanly
+
+Recent pitfall:
+- a stray shell fragment once got left in app.py; always verify syntax after edits.
