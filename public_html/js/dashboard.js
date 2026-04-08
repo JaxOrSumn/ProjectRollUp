@@ -12,16 +12,22 @@ const USE_MOCK = false; // Set to true to use mock data instead of API
 async function fetchStories() {
   if (USE_MOCK) {
     stories = MOCK_STORIES;
+    console.log('Using mock data:', stories.length, 'stories');
     return;
   }
   try {
+    console.log('Fetching from:', `${API_BASE}/api/stories`);
     const res = await fetch(`${API_BASE}/api/stories`);
+    console.log('Response status:', res.status);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
+    console.log('API response:', data);
     stories = data.stories || [];
+    console.log('Loaded stories:', stories.length);
   } catch (err) {
     console.error('Failed to fetch stories, falling back to mock:', err);
     stories = MOCK_STORIES;
+    console.log('Fallback to mock:', stories.length, 'stories');
   }
 }
 
@@ -92,9 +98,16 @@ function renderHeader() {
 
 function renderFeed() {
   const feed = document.getElementById('feed');
+  if (!feed) {
+    console.error('Feed container #feed not found in DOM');
+    return;
+  }
+  
   const filtered = filterStories(stories);
+  console.log('Rendering feed with', filtered.length, 'filtered stories');
 
   if (filtered.length === 0) {
+    console.warn('No stories to display');
     feed.innerHTML = '<p style="color: var(--color-slate); text-align: center; padding: 24px;">No signals match current filters.</p>';
     return;
   }
@@ -286,13 +299,22 @@ function startRefreshCycle() {
 }
 
 async function refresh() {
+  console.log('=== REFRESH START ===');
   await fetchSystemState();
+  console.log('System state loaded:', systemState);
   await fetchStories();
+  console.log('Stories loaded:', stories.length);
   renderHeader();
+  console.log('Header rendered');
   renderFeed();
+  console.log('Feed rendered');
   renderSystemStatus();
+  console.log('System status rendered');
   renderSourceHealth();
+  console.log('Source health rendered');
   renderCoverageTheater();
+  console.log('Coverage theater rendered');
+  console.log('=== REFRESH COMPLETE ===');
 }
 
 // ── Initialize ──────────────────────────────────────────
