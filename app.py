@@ -323,12 +323,12 @@ def fallback_items(needed: int, bucket='fallback'):
     return items
 
 
-def guaranteed_stories():
+def guaranteed_stories(page: int = 1):
     live_primary = dedupe_and_rank(load_entries(PRIMARY_FEEDS))
     recent = [x for x in live_primary if x['age_minutes'] <= LOOKBACK_MINUTES]
     older = [x for x in live_primary if x['age_minutes'] > LOOKBACK_MINUTES]
     items = recent + older
-    if len(items) < MAX_ITEMS:
+    if len(items) < MAX_ITEMS or page > 1:
         live_backup = dedupe_and_rank(load_entries(BACKUP_FEEDS))
         items.extend(live_backup)
         items = dedupe_and_rank(items)
@@ -337,12 +337,16 @@ def guaranteed_stories():
         items = dedupe_and_rank(items)
     if len(items) < MAX_ITEMS:
         items.extend(fallback_items(MAX_ITEMS - len(items)))
+    if len(items) < MAX_ITEMS:
+        items.extend(fallback_items(MAX_ITEMS - len(items), bucket='older'))
     items.sort(key=lambda x: (x.get('score', 0), -x.get('age_minutes', 9999)), reverse=True)
-    return items[:MAX_ITEMS]
+    while len(items) < MAX_ITEMS:
+        items.extend(fallback_items(MAX_ITEMS - len(items), bucket='older'))
+    return items[:max(MAX_ITEMS, 100)]
 
 
-def refresh_cache():
-    items = guaranteed_stories()
+def refresh_cache(page: int = 1):
+    items = guaranteed_stories(page)
     with db() as conn:
         conn.execute('DELETE FROM stories')
         for item in items:
@@ -373,9 +377,9 @@ async def root():
 
 
 @app.get('/api/stories')
-async def stories():
+async def stories(page: int = 1):
     try:
-        items = refresh_cache()
+        items = refresh_cache(page)
     except Exception:
         items = cached_items()
         if len(items) < MAX_ITEMS:

@@ -7,26 +7,61 @@
   <link rel="stylesheet" href="/web/styles.css" />
 </head>
 <body>
-  <div class='shell'>
-    <div class='panel head'>
+  <div class='appShell'>
+    <header class='topBar'>
       <div>
-        <div class='kicker'>PROJECT ROLLUP</div>
-        <div class='title'>SOURCE-DIVERSE NEWS OPERATIONS</div>
-        <div class='meta'>Live RSS ingestion • transparent clustering • 100-item window • 60m lookback</div>
+        <div class='eyebrow'>PROJECT ROLLUP</div>
+        <h1 class='siteTitle'>News, surfaced cleanly</h1>
+        <p class='siteMeta'>100+ distinct headlines • deduped sources • readable summaries • live timestamps</p>
       </div>
-      <div class='meta' id='status'>Loading…</div>
-    </div>
-    <div class='panel'>
-      <div class='list'>
-        <div class='rows' id='rows'>
-          <div class='cell muted'>#</div><div class='cell muted'>Headline</div><div class='cell muted src'>Source</div><div class='cell muted age'>Age</div><div class='cell muted count'>Src</div><div class='cell muted score'>Score</div>
+      <div class='topBarRight'>
+        <div class='statusPill' id='status'>Loading…</div>
+        <button class='btnGhost' id='refreshBtn' type='button'>Refresh</button>
+      </div>
+    </header>
+
+    <nav class='toolbar' aria-label='News controls'>
+      <input id='searchInput' class='searchInput' type='search' placeholder='Search headlines, sources, topics' />
+      <select id='sourceFilter' class='selectInput' aria-label='Filter by source'>
+        <option value='all'>All sources</option>
+      </select>
+      <select id='sortSelect' class='selectInput' aria-label='Sort stories'>
+        <option value='rank'>Top ranked</option>
+        <option value='time'>Newest first</option>
+        <option value='source'>Source count</option>
+      </select>
+      <button class='btnGhost' id='moreBtn' type='button'>Load more</button>
+      <div class='toolbarNote' id='resultCount'>0 headlines</div>
+    </nav>
+
+    <main class='mainGrid'>
+      <section class='storiesPanel' aria-label='Headline feed'>
+        <div class='storiesHeader'>
+          <div>
+            <h2 class='sectionTitle'>Headlines</h2>
+            <div class='sectionHint'>Click a headline to open the fact-based write-up. Use arrow keys to move through items.</div>
+          </div>
+          <div class='sectionHint' id='windowInfo'></div>
         </div>
-      </div>
-      <div class='detail'>
-        <div class='panel'><pre id='detail'>Waiting for data…</pre></div>
-        <div class='panel'><pre id='rules'>Controls:\n- click headline to pin\n- press Enter to open the summary\n- scroll to move selection\n- D = toggle density\n- R = refresh\n\nWhy it works:\n- fetches RSS feeds\n- dedupes by fuzzy title matching\n- clusters sources\n- ranks by recency, diversity, source count</pre></div>
-      </div>
-    </div>
+        <div class='storyListWrap' id='storyListWrap'>
+          <div class='storyList' id='storyList'></div>
+        </div>
+      </section>
+
+      <aside class='detailPanel' aria-label='Selected story details'>
+        <div class='detailCard' id='detailCard'>
+          <div class='detailKicker'>SELECTED STORY</div>
+          <h3 class='detailTitle' id='detailTitle'>Choose a headline</h3>
+          <div class='detailMeta' id='detailMeta'>The selection detail will appear here.</div>
+          <p class='detailSummary' id='detailSummary'>Select a headline to see a concise, fact-based write-up based on available feed text and article content when available.</p>
+          <div class='detailActions'>
+            <button class='btnPrimary' id='openSummaryBtn' type='button' disabled>Open write-up</button>
+            <button class='btnGhost' id='toggleCompactBtn' type='button'>Toggle compact cards</button>
+          </div>
+          <div class='detailFacts' id='detailFacts'></div>
+        </div>
+      </aside>
+    </main>
   </div>
 
   <aside class='globeWidget' id='globeWidget' aria-hidden='true'>
@@ -35,6 +70,11 @@
         <svg class='globeSvg' viewBox='0 0 160 160' aria-hidden='true'>
           <defs>
             <clipPath id='globeClip'><circle cx='80' cy='80' r='78' /></clipPath>
+            <radialGradient id='glowfade' cx='50%' cy='44%' r='62%'>
+              <stop offset='0%' stop-color='rgba(0,255,102,.18)' />
+              <stop offset='58%' stop-color='rgba(0,255,102,.04)' />
+              <stop offset='100%' stop-color='rgba(0,0,0,.1)' />
+            </radialGradient>
           </defs>
           <g clip-path='url(#globeClip)'>
             <rect x='0' y='0' width='160' height='160' fill='rgba(0,0,0,.35)' />
@@ -49,13 +89,6 @@
             <circle class='marker' id='markerDot' cx='80' cy='80' r='3.8' />
             <rect x='0' y='0' width='160' height='160' fill='url(#glowfade)' opacity='.35' />
           </g>
-          <defs>
-            <radialGradient id='glowfade' cx='50%' cy='44%' r='62%'>
-              <stop offset='0%' stop-color='rgba(0,255,102,.18)' />
-              <stop offset='58%' stop-color='rgba(0,255,102,.04)' />
-              <stop offset='100%' stop-color='rgba(0,0,0,.1)' />
-            </radialGradient>
-          </defs>
         </svg>
       </div>
       <div class='globeLabel' id='globeLabel'>LOCATION UNKNOWN</div>
