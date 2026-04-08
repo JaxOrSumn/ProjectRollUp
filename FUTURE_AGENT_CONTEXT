@@ -1,0 +1,37 @@
+Project RollUp — future agent context
+
+What was built
+- News aggregation site with CRT-green styling and a bottom-right globe widget.
+- Headline cards show title, source, timestamp, source count, inferred location, summary, and score.
+- Clicking a headline opens a fact-based write-up modal.
+- The globe infers location from structured metadata first, then headline/summary/body text, with confidence scoring and safe fallback.
+- The backend extracts feed excerpts and article page text when possible and caps summaries at 400 words.
+- The site guarantees at least 100 distinct headlines by expanding the time window, using backup feeds, and then falling back to older clearly labeled items.
+
+Important files in the live site
+- /data/.openclaw/workspace/project-rollup-live/app.py
+- /data/.openclaw/workspace/project-rollup-live/index.html
+- /data/.openclaw/workspace/project-rollup-live/script.js
+- /data/.openclaw/workspace/project-rollup-live/styles.css
+
+Important deployment note
+- The live site in use is the root-level set of files, not /web.
+- There was confusion about /web vs public_html. The user asked to use public_html as replacement.
+- A public_html directory was created and populated from the root live files for packaging/sharing.
+
+Recent notable fixes
+- Removed a stray syntax residue from app.py that caused py_compile to fail.
+- Improved card hierarchy and reduced-motion behavior.
+- Verified JS syntax with node --check.
+- Verified app.py compiles after the fix.
+
+Telegram delivery
+- Final release zip was sent to Telegram several times during the workflow.
+
+If rebuilding from scratch
+1. Use the root-level files first.
+2. Keep the 100-headline guarantee logic intact.
+3. Preserve the globe widget and the write-up modal.
+4. Keep the green CRT aesthetic subtle and readable.
+5. Make sure mobile hides the globe entirely.
+6. Re-run syntax checks before packaging.
