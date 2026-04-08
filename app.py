@@ -586,9 +586,12 @@ def cached_items() -> list:
                FROM stories ORDER BY score DESC, age_minutes ASC LIMIT ?""",
             (MAX_ITEMS,),
         ).fetchall()
-    return [
-        {
-            'headline': r['title'],
+    items = []
+    for r in rows:
+        headline = r['title']
+        summary = r['summary'] or ''
+        items.append({
+            'headline': headline,
             'source': r['source'],
             'url': r['url'] or '',
             'published': r['published'] or '',
@@ -599,10 +602,10 @@ def cached_items() -> list:
             'score': r['score'],
             'sources': json.loads(r['sources_json'] or '[]'),
             'reason': r['reason'],
-            'summary': r['summary'] or '',
-        }
-        for r in rows
-    ]
+            'summary': summary,
+            'tags': classify_tags(headline, summary),
+        })
+    return items
 
 
 # ── Background refresh loop ───────────────────────────────────────────────────
