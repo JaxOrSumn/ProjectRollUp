@@ -424,10 +424,7 @@ async def stories(page: int = 1):
 
 @app.get('/api/story')
 async def story(id: str = None, headline: str = None):
-    try:
-        items = refresh_cache()
-    except Exception:
-        items = cached_items()
+    items = cached_items()
     
     target = None
     search_term = headline or id
@@ -467,6 +464,12 @@ async def story(id: str = None, headline: str = None):
 
     if target.get('summary'):
         target['summary'] = trim_words(target['summary'], SUMMARY_WORDS)
+
+    # Ensure frontend field aliases are present
+    target.setdefault('rankReason', target.get('reason', ''))
+    target.setdefault('rank_reason', target.get('reason', ''))
+    target.setdefault('sourceCount', target.get('source_count', 1))
+    target.setdefault('firstSeenAt', target.get('published', ''))
 
     return JSONResponse(target)
 
