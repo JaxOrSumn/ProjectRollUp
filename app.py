@@ -416,5 +416,3 @@ async def health():
 async def api_refresh():
     items = refresh_cache()
     return JSONResponse({'items': len(items), 'as_of': datetime.now(timezone.utc).isoformat()})
-EOF
-mv /tmp/new_app.py app.py

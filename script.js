@@ -193,7 +193,10 @@ function renderList() {
     const loc = inferLocation(r);
     return `
       <article class='storyCard ${isSelected ? 'selected' : ''}' data-index='${i}' tabindex='0' role='button' aria-label='Open ${htmlesc(r.headline)}'>
-        <h3 class='storyCardTitle'>${htmlesc(r.headline)}</h3>
+        <div class='storyCardTop'>
+          <h3 class='storyCardTitle'>${htmlesc(r.headline)}</h3>
+          <div class='storyCardScore'>${Number(r.score || 0).toFixed(3)}</div>
+        </div>
         <div class='storyCardMeta'>
           <span class='chip'>${htmlesc(r.source || 'Unknown')}</span>
           <span class='chip'>${htmlesc(r.displayTime || r.age || '')}</span>
@@ -203,7 +206,7 @@ function renderList() {
         <p class='storyCardSummary'>${htmlesc(r.summary || r.reason || 'No summary available yet.')}</p>
         <div class='storyCardFooter'>
           <span>${r.readTime || 1} min read</span>
-          <span>Score ${Number(r.score || 0).toFixed(3)}</span>
+          <span>${htmlesc(r.displayAge || r.age || 'Fresh')}</span>
         </div>
       </article>`;
   }).join('');
