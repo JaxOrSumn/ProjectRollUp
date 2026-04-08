@@ -289,7 +289,7 @@ def summarize_text(title: str, source: str, body: str, meta: str, source_count: 
     if not selected:
         selected = [meta or body or title]
 
-    intro = f'{title} is being tracked by Project RollUp from {source_phrase}. It is {age_minutes} minutes old and currently carries a relevance score of {score:.3f}. '
+    intro = f'"{title}" is being tracked by Project RollUp from {source_phrase}. It is {age_minutes} minutes old and currently carries a relevance score of {score:.3f}. '
     outro = 'This write-up stays within the facts available from the story metadata and feed text and avoids speculation.'
     summary = intro + ' '.join(selected)
     if word_count(summary + ' ' + outro) <= SUMMARY_WORDS:
@@ -300,6 +300,80 @@ def summarize_text(title: str, source: str, body: str, meta: str, source_count: 
 def trim_words(text: str, limit: int = SUMMARY_WORDS) -> str:
     words = text.split()
     return ' '.join(words[:limit])
+
+
+_TAG_RULES: list[tuple[str, re.Pattern]] = [
+    ('Geopolitics', re.compile(
+        r'war|conflict|military|sanction|diplomatic|ceasefire|treaty|nato|un |united nations|'
+        r'government|election|president|minister|prime minister|border|nuclear|crisis|'
+        r'troops|invasion|occupation|sovereignty|referendum|coup|protest|rally|'
+        r'foreign policy|bilateral|multilateral|ambassador|embassy|regime',
+        re.I)),
+    ('Tech', re.compile(
+        r'technolog|artificial intelligence|\bai\b|machine learning|software|hardware|'
+        r'startup|silicon|cyber|digital|algorithm|semiconductor|chip|data breach|'
+        r'smartphone|app |platform|cloud|quantum|robot|automation|bitcoin|crypto|'
+        r'elon musk|meta |google|apple |microsoft|amazon|openai|nvidia',
+        re.I)),
+    ('Economic', re.compile(
+        r'economy|econom|market|trade|inflation|gdp|interest rate|\bfed\b|federal reserve|'
+        r'central bank|finance|currency|stock|investment|recession|tariff|deficit|'
+        r'unemployment|supply chain|oil price|energy price|imf|world bank|debt|budget|'
+        r'export|import|manufacturing|labour market|wage',
+        re.I)),
+    ('Scientific Reports', re.compile(
+        r'research|study|scientis|climate|species|discovery|nasa|space|'
+        r'health|medical|virus|vaccine|genome|cancer|disease|pandemic|'
+        r'fossil|asteroid|telescope|physics|biology|chemistry|neuroscien|'
+        r'experiment|trial|findings|published in|journal',
+        re.I)),
+    ('Media', re.compile(
+        r'journalist|press|news outlet|broadcast|social media|censorship|'
+        r'freedom of press|media outlet|newspaper|television|podcast|'
+        r'disinformation|misinformation|propaganda|editorial|newsroom|'
+        r'twitter|x\.com|tiktok|instagram|facebook|youtube|streaming',
+        re.I)),
+    ('Celebrity News', re.compile(
+        r'celebrity|actor|actress|entertainer|hollywood|music|album|tour|'
+        r'award|oscar|grammy|emmy|bafta|pop star|singer|rapper|film star|'
+        r'box office|reality tv|scandal|divorce|engaged|married|pregnant|'
+        r'taylor swift|beyonce|kardashian|prince harry|meghan',
+        re.I)),
+]
+
+
+def classify_tags(headline: str, summary: str) -> list[str]:
+    text = f'{headline} {summary}'
+    return [tag for tag, pattern in _TAG_RULES if pattern.search(text)]
+
+
+def human_reason(freshness: float, source_count: int, group_size: int, age_minutes: int, bucket: str) -> str:
+    if bucket == 'fresh':
+        timing = f'Breaking — first detected {age_minutes} min ago'
+    elif age_minutes < 180:
+        timing = f'Developing — {age_minutes} min old'
+    else:
+        hours = age_minutes // 60
+        timing = f'Ongoing — {hours}h old'
+
+    if source_count >= 4:
+        coverage = f'confirmed across {source_count} independent outlets'
+    elif source_count == 3:
+        coverage = 'picked up by 3 sources'
+    elif source_count == 2:
+        coverage = 'corroborated by 2 sources'
+    else:
+        coverage = 'single-source signal'
+
+    if group_size >= 4:
+        velocity = 'High editorial velocity'
+    elif group_size >= 2:
+        velocity = 'Moderate editorial interest'
+    else:
+        velocity = 'Early-stage signal'
+
+    freshness_pct = round(freshness * 100)
+    return f'{timing} · {coverage} · {velocity} · Freshness score {freshness_pct}%'
 
 
 # ── Feed fetching (async + concurrent) ───────────────────────────────────────
@@ -386,13 +460,14 @@ def dedupe_and_rank(entries: list) -> list:
         cluster_bonus = min(1.0, len(group) / 3)
         score = round((freshness * 0.5 + diversity * 0.35 + cluster_bonus * 0.15), 3)
         bucket = 'fresh' if age_minutes <= 60 else 'older'
-        reason = f'freshness={freshness:.2f}; source_count={source_count}; group_size={len(group)}; diversity={diversity:.2f}; bucket={bucket}'
+        reason = human_reason(freshness, source_count, len(group), age_minutes, bucket)
         summary = summarize_text(
             title, group[0]['source'],
             ' '.join(g.get('content_text', '') for g in group),
             ' '.join(g.get('meta_summary', '') for g in group),
             source_count, age_minutes, score,
         )
+        tags = classify_tags(title, summary)
         items.append({
             'headline': title,
             'source': group[0]['source'],
@@ -404,6 +479,7 @@ def dedupe_and_rank(entries: list) -> list:
             'sources': source_names,
             'reason': reason,
             'summary': summary,
+            'tags': tags,
             'cluster_id': group[0]['cluster_id'],
             'published': group[0]['published'],
             'url': group[0]['url'],
@@ -423,6 +499,7 @@ def fallback_items(needed: int, bucket='fallback') -> list:
         age_minutes = 5 + (i % 55)
         score = round(0.35 + (55 - age_minutes) / 200, 3)
         summary = summarize_text(title, source, title, '', 1, age_minutes, score)
+        tags = classify_tags(title, summary)
         items.append({
             'headline': title,
             'source': source,
@@ -432,6 +509,7 @@ def fallback_items(needed: int, bucket='fallback') -> list:
             'source_count': 1,
             'score': score,
             'sources': [source],
+            'tags': tags,
             'reason': 'fallback item — live feeds returned insufficient results',
             'summary': summary,
             'cluster_id': f'fallback-{i}',
@@ -573,7 +651,7 @@ async def stories():
             'firstSeenAt': item.get('published') or datetime.now(timezone.utc).isoformat(),
             'published_at': item.get('published') or datetime.now(timezone.utc).isoformat(),
             'age_minutes': item.get('age_minutes', 0),
-            'tags': [],
+            'tags': item.get('tags', []),
             'summary': item.get('summary', ''),
             'rankReason': item.get('reason', 'Ranked by score'),
             'rank_reason': item.get('reason', 'Ranked by score'),
