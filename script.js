@@ -308,10 +308,13 @@ function setStories(stories, append = false) {
 }
 function dedupeStories(list) {
   const out = [];
+  const seen = new Set();
   for (const story of list) {
-    const title = norm(story.headline);
-    const matched = out.find((x) => fuzz.ratio(norm(x.headline), title) >= 90 || (x.source === story.source && norm(x.headline) === title));
-    if (!matched) out.push(story);
+    const key = norm(story.headline);
+    if (!seen.has(key)) {
+      seen.add(key);
+      out.push(story);
+    }
   }
   return out.sort((a, b) => (b.score || 0) - (a.score || 0) || (a.age_minutes || 9999) - (b.age_minutes || 9999));
 }
@@ -323,7 +326,7 @@ function fetchStories() {
       return res.json();
     })
     .then((data) => {
-      const stories = data.items || [];
+      const stories = data.stories || [];
       loadedPages.add(page);
       setStories(page === 1 ? stories : stories, page > 1);
       els.status.textContent = `${items.length} stories loaded • ${data.as_of || new Date().toISOString()}`;

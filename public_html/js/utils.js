@@ -1,7 +1,10 @@
 // ── Utility Functions ───────────────────────────────────
 
 function timeAgo(isoString) {
-  const diff = Date.now() - new Date(isoString).getTime();
+  if (!isoString) return 'Unknown';
+  const date = new Date(isoString);
+  if (isNaN(date.getTime())) return 'Unknown';
+  const diff = Date.now() - date.getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'just now';
   if (mins < 60) return mins + 'm ago';

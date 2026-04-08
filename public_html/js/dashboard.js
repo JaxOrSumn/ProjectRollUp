@@ -64,13 +64,18 @@ async function fetchStoryDetail(id) {
   if (USE_MOCK) {
     return MOCK_STORIES.find(s => s.id === id);
   }
+  const localStory = stories.find(s => s.id === id);
+  const headline = localStory?.headline || localStory?.title;
   try {
-    const res = await fetch(`${API_BASE}/api/story?id=${encodeURIComponent(id)}`);
+    const param = headline
+      ? `headline=${encodeURIComponent(headline)}`
+      : `id=${encodeURIComponent(id)}`;
+    const res = await fetch(`${API_BASE}/api/story?${param}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return await res.json();
   } catch (err) {
     console.error('Failed to fetch story detail:', err);
-    return stories.find(s => s.id === id);
+    return localStory;
   }
 }
 
@@ -117,7 +122,7 @@ function renderFeed() {
     if (story.featured) cardClass.push('featured');
     if (story.rank === 1) cardClass.push('top-signal');
 
-    const sourceDisplay = story.repSource?.name || story.source || 'Unknown';
+    const sourceDisplay = story.source || 'Unknown';
     const confPercent = Math.round((story.confidence || 0) * 100);
     const confBarColor = confColor(story.confidence || 0);
 

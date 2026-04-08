@@ -1,14 +1,14 @@
 from __future__ import annotations
 
+import asyncio
+import calendar
 import json
 import sqlite3
-import time
 import re
 import warnings
 from html import unescape
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Iterable
 
 import feedparser
 import httpx
@@ -28,14 +28,14 @@ LOOKBACK_MINUTES = 60
 MAX_ITEMS = 100
 SUMMARY_WORDS = 400
 MAX_BODY_CHARS = 14000
-MAX_FEEDS_PER_CYCLE = 15  # Limit concurrent feed fetches to reduce memory
-FEED_TIMEOUT = 10  # Timeout per feed request in seconds
+FEED_TIMEOUT = 12  # Timeout per feed request in seconds
+REFRESH_INTERVAL = 300  # Background refresh every 5 minutes
 
 app = FastAPI(title='Project RollUp')
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['*'],  # Allow all origins for now - tighten later
-    allow_credentials=False,  # Must be False when allow_origins is *
+    allow_origins=['*'],
+    allow_credentials=False,
     allow_methods=['*'],
     allow_headers=['*'],
 )
@@ -101,6 +101,8 @@ FALLBACK_STORIES = [
 ]
 
 
+# ── Database ─────────────────────────────────────────────────────────────────
+
 def db():
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
@@ -132,12 +134,13 @@ def init_db():
 
 
 def cleanup_old_stories():
-    """Delete stories older than 24 hours to prevent database bloat"""
     cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
     with db() as conn:
         conn.execute('DELETE FROM stories WHERE created_at < ?', (cutoff,))
         conn.commit()
 
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
 
 def parse_ts(entry):
     for key in ('published', 'updated', 'created'):
@@ -148,7 +151,11 @@ def parse_ts(entry):
             except Exception:
                 pass
     if entry.get('published_parsed'):
-        return datetime.fromtimestamp(time.mktime(entry.published_parsed), tz=timezone.utc)
+        # Use calendar.timegm (treats struct_time as UTC, which feedparser guarantees)
+        # instead of time.mktime (which incorrectly assumes local timezone)
+        return datetime.utcfromtimestamp(
+            calendar.timegm(entry.published_parsed)
+        ).replace(tzinfo=timezone.utc)
     return datetime.now(timezone.utc)
 
 
@@ -250,12 +257,26 @@ def trim_words(text: str, limit: int = SUMMARY_WORDS) -> str:
     return ' '.join(words[:limit])
 
 
-def fetch_feed(name: str, url: str):
+# ── Feed fetching (async + concurrent) ───────────────────────────────────────
+
+async def fetch_feed_async(name: str, url: str) -> list:
+    """Fetch a single RSS feed asynchronously."""
     try:
-        # Reduce entries per feed from 40 to 20 to save memory
-        data = feedparser.parse(url, timeout=FEED_TIMEOUT)
+        async with httpx.AsyncClient(
+            follow_redirects=True,
+            timeout=FEED_TIMEOUT,
+            headers={'User-Agent': 'Mozilla/5.0 (compatible; ProjectRollUp/1.0)'},
+        ) as client:
+            res = await client.get(url)
+            res.raise_for_status()
+            text = res.text
+    except Exception:
+        return []
+
+    try:
+        data = feedparser.parse(text)
         entries = []
-        for entry in data.entries[:20]:  # Reduced from 40
+        for entry in data.entries[:20]:
             title = entry.get('title', '').strip()
             if not title:
                 continue
@@ -266,27 +287,35 @@ def fetch_feed(name: str, url: str):
             article_url = entry.get('link', '')
             meta_summary = extract_meta_summary(entry)
             content_text = clean_text(meta_summary)
-            # Skip article extraction to reduce memory - just use feed summary
-            # if article_url:
-            #     extracted = extract_article_text(article_url)
-            #     if extracted:
-            #         content_text = extracted
-            entries.append({'title': title, 'source': name, 'url': article_url, 'published': published.isoformat(), 'age_minutes': age_minutes, 'cluster_id': cluster_key(title), 'meta_summary': meta_summary, 'content_text': content_text})
+            entries.append({
+                'title': title,
+                'source': name,
+                'url': article_url,
+                'published': published.isoformat(),
+                'age_minutes': age_minutes,
+                'cluster_id': cluster_key(title),
+                'meta_summary': meta_summary,
+                'content_text': content_text,
+            })
         return entries
     except Exception:
         return []
 
 
-def load_entries(feeds: Iterable[tuple[str, str]]):
+async def load_entries_async(feeds: list[tuple[str, str]]) -> list:
+    """Fetch all feeds concurrently and return combined entries."""
+    tasks = [fetch_feed_async(name, url) for name, url in feeds]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
     entries = []
-    # Process feeds in batches to limit memory usage
-    feed_list = list(feeds)[:MAX_FEEDS_PER_CYCLE]  # Limit to first 15 feeds
-    for name, url in feed_list:
-        entries.extend(fetch_feed(name, url))
+    for result in results:
+        if isinstance(result, list):
+            entries.extend(result)
     return entries
 
 
-def dedupe_and_rank(entries):
+# ── Ranking & deduplication ───────────────────────────────────────────────────
+
+def dedupe_and_rank(entries: list) -> list:
     clusters = []
     for e in entries:
         found = None
@@ -313,75 +342,160 @@ def dedupe_and_rank(entries):
         score = round((freshness * 0.5 + diversity * 0.35 + cluster_bonus * 0.15), 3)
         bucket = 'fresh' if age_minutes <= 60 else 'older'
         reason = f'freshness={freshness:.2f}; source_count={source_count}; group_size={len(group)}; diversity={diversity:.2f}; bucket={bucket}'
-        summary = summarize_text(title, group[0]['source'], ' '.join(g.get('content_text', '') for g in group), ' '.join(g.get('meta_summary', '') for g in group), source_count, age_minutes, score)
-        items.append({'headline': title, 'source': group[0]['source'], 'age': f'{age_minutes}m', 'age_minutes': age_minutes, 'freshness_bucket': bucket, 'source_count': source_count, 'score': score, 'sources': source_names, 'reason': reason, 'summary': summary, 'cluster_id': group[0]['cluster_id'], 'published': group[0]['published'], 'url': group[0]['url']})
+        summary = summarize_text(
+            title, group[0]['source'],
+            ' '.join(g.get('content_text', '') for g in group),
+            ' '.join(g.get('meta_summary', '') for g in group),
+            source_count, age_minutes, score,
+        )
+        items.append({
+            'headline': title,
+            'source': group[0]['source'],
+            'age': f'{age_minutes}m',
+            'age_minutes': age_minutes,
+            'freshness_bucket': bucket,
+            'source_count': source_count,
+            'score': score,
+            'sources': source_names,
+            'reason': reason,
+            'summary': summary,
+            'cluster_id': group[0]['cluster_id'],
+            'published': group[0]['published'],
+            'url': group[0]['url'],
+        })
 
     items.sort(key=lambda x: (x['score'], -x['age_minutes']), reverse=True)
     return items
 
 
-def fallback_items(needed: int, bucket='fallback'):
+def fallback_items(needed: int, bucket='fallback') -> list:
     now = datetime.now(timezone.utc)
     items = []
-    pool = FALLBACK_STORIES if FALLBACK_STORIES else [('Project RollUp fallback headline', 'Project RollUp')]
+    pool = FALLBACK_STORIES or [('Project RollUp fallback headline', 'Project RollUp')]
     for i, (title, source) in enumerate(pool * ((needed // len(pool)) + 1)):
         if len(items) >= needed:
             break
         age_minutes = 5 + (i % 55)
         score = round(0.35 + (55 - age_minutes) / 200, 3)
         summary = summarize_text(title, source, title, '', 1, age_minutes, score)
-        items.append({'headline': title, 'source': source, 'age': f'{age_minutes}m', 'age_minutes': age_minutes, 'freshness_bucket': bucket, 'source_count': 1, 'score': score, 'sources': [source], 'reason': 'fallback item used because live feed window was sparse', 'summary': summary, 'cluster_id': f'fallback-{i}', 'published': now.isoformat(), 'url': ''})
+        items.append({
+            'headline': title,
+            'source': source,
+            'age': f'{age_minutes}m',
+            'age_minutes': age_minutes,
+            'freshness_bucket': bucket,
+            'source_count': 1,
+            'score': score,
+            'sources': [source],
+            'reason': 'fallback item — live feeds returned insufficient results',
+            'summary': summary,
+            'cluster_id': f'fallback-{i}',
+            'published': now.isoformat(),
+            'url': '',
+        })
     return items
 
 
-def guaranteed_stories(page: int = 1):
-    live_primary = dedupe_and_rank(load_entries(PRIMARY_FEEDS))
-    recent = [x for x in live_primary if x['age_minutes'] <= LOOKBACK_MINUTES]
-    older = [x for x in live_primary if x['age_minutes'] > LOOKBACK_MINUTES]
-    items = recent + older
-    if len(items) < MAX_ITEMS or page > 1:
-        live_backup = dedupe_and_rank(load_entries(BACKUP_FEEDS))
-        items.extend(live_backup)
-        items = dedupe_and_rank(items)
+async def guaranteed_stories_async() -> list:
+    """Fetch all feeds concurrently, rank, and pad with fallback if needed."""
+    # Fetch primary and backup feeds concurrently
+    primary_entries, backup_entries = await asyncio.gather(
+        load_entries_async(PRIMARY_FEEDS),
+        load_entries_async(BACKUP_FEEDS),
+    )
+
+    items = dedupe_and_rank(primary_entries)
+
+    # Only merge backup feeds if primary is sparse
     if len(items) < MAX_ITEMS:
-        items.extend(fallback_items(MAX_ITEMS - len(items)))
-        items = dedupe_and_rank(items)
+        combined = dedupe_and_rank(primary_entries + backup_entries)
+        items = combined
+
+    # Pad with fallback only if still not enough real stories
     if len(items) < MAX_ITEMS:
-        items.extend(fallback_items(MAX_ITEMS - len(items)))
-    if len(items) < MAX_ITEMS:
-        items.extend(fallback_items(MAX_ITEMS - len(items), bucket='older'))
+        items = items + fallback_items(MAX_ITEMS - len(items))
+
     items.sort(key=lambda x: (x.get('score', 0), -x.get('age_minutes', 9999)), reverse=True)
-    while len(items) < MAX_ITEMS:
-        items.extend(fallback_items(MAX_ITEMS - len(items), bucket='older'))
-    return items[:max(MAX_ITEMS, 100)]
+    return items[:MAX_ITEMS]
 
 
-def refresh_cache(page: int = 1):
-    items = guaranteed_stories(page)
+async def refresh_cache_async():
+    """Fetch feeds and write results to the DB cache."""
+    items = await guaranteed_stories_async()
     with db() as conn:
         conn.execute('DELETE FROM stories')
         for item in items:
-            conn.execute("""INSERT INTO stories (title, source, url, published, age_minutes, freshness_bucket, cluster_id, score, source_count, sources_json, reason, summary, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", (item['headline'], item['source'], item.get('url', ''), item['published'], int(item['age_minutes']), item.get('freshness_bucket', 'fallback'), item['cluster_id'], item['score'], item['source_count'], json.dumps(item['sources']), item['reason'], item.get('summary', ''), datetime.now(timezone.utc).isoformat()))
+            conn.execute(
+                """INSERT INTO stories
+                   (title, source, url, published, age_minutes, freshness_bucket,
+                    cluster_id, score, source_count, sources_json, reason, summary, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    item['headline'], item['source'], item.get('url', ''),
+                    item.get('published', datetime.now(timezone.utc).isoformat()),
+                    int(item['age_minutes']), item.get('freshness_bucket', 'fallback'),
+                    item['cluster_id'], item['score'], item['source_count'],
+                    json.dumps(item['sources']), item['reason'],
+                    item.get('summary', ''), datetime.now(timezone.utc).isoformat(),
+                ),
+            )
         conn.commit()
     return items
 
 
-def cached_items():
+def cached_items() -> list:
+    """Read stories from DB cache. Fast — no network calls."""
     with db() as conn:
-        rows = conn.execute('SELECT title, source, url, age_minutes, freshness_bucket, score, source_count, sources_json, reason, summary FROM stories ORDER BY score DESC, age_minutes ASC LIMIT ?', (MAX_ITEMS,)).fetchall()
-    return [{'headline': r['title'], 'source': r['source'], 'url': r['url'] or '', 'age': f"{r['age_minutes']}m", 'age_minutes': r['age_minutes'], 'freshness_bucket': r['freshness_bucket'], 'source_count': r['source_count'], 'score': r['score'], 'sources': json.loads(r['sources_json'] or '[]'), 'reason': r['reason'], 'summary': r['summary'] or ''} for r in rows]
+        rows = conn.execute(
+            """SELECT title, source, url, published, age_minutes, freshness_bucket,
+                      score, source_count, sources_json, reason, summary
+               FROM stories ORDER BY score DESC, age_minutes ASC LIMIT ?""",
+            (MAX_ITEMS,),
+        ).fetchall()
+    return [
+        {
+            'headline': r['title'],
+            'source': r['source'],
+            'url': r['url'] or '',
+            'published': r['published'] or '',
+            'age': f"{r['age_minutes']}m",
+            'age_minutes': r['age_minutes'],
+            'freshness_bucket': r['freshness_bucket'],
+            'source_count': r['source_count'],
+            'score': r['score'],
+            'sources': json.loads(r['sources_json'] or '[]'),
+            'reason': r['reason'],
+            'summary': r['summary'] or '',
+        }
+        for r in rows
+    ]
 
+
+# ── Background refresh loop ───────────────────────────────────────────────────
+
+async def _background_refresh_loop():
+    while True:
+        await asyncio.sleep(REFRESH_INTERVAL)
+        try:
+            await refresh_cache_async()
+        except Exception:
+            pass
+
+
+# ── App lifecycle ─────────────────────────────────────────────────────────────
 
 @app.on_event('startup')
-def _startup():
+async def _startup():
     init_db()
-    cleanup_old_stories()  # Clean up old stories on startup
+    cleanup_old_stories()
     try:
-        refresh_cache()
+        await refresh_cache_async()
     except Exception:
         pass
+    asyncio.create_task(_background_refresh_loop())
 
+
+# ── API endpoints ─────────────────────────────────────────────────────────────
 
 @app.get('/')
 async def root():
@@ -389,16 +503,17 @@ async def root():
 
 
 @app.get('/api/stories')
-async def stories(page: int = 1):
-    try:
-        items = refresh_cache(page)
-    except Exception:
-        items = cached_items()
-        if len(items) < MAX_ITEMS:
-            items.extend(fallback_items(MAX_ITEMS - len(items)))
+async def stories():
+    """Serve from DB cache — fast, no feed fetching."""
+    items = cached_items()
+    if not items:
+        # Cache is empty (first boot race) — run a fresh fetch once
+        try:
+            items = await refresh_cache_async()
+        except Exception:
+            items = fallback_items(MAX_ITEMS)
+
     items = items[:MAX_ITEMS]
-    
-    # Transform to frontend format
     stories_list = []
     for idx, item in enumerate(items, 1):
         stories_list.append({
@@ -410,40 +525,57 @@ async def stories(page: int = 1):
             'sourceCount': item['source_count'],
             'source_count': item['source_count'],
             'confidence': min(item['score'], 1.0),
-            'firstSeenAt': item.get('published', datetime.now(timezone.utc).isoformat()),
-            'published_at': item.get('published', datetime.now(timezone.utc).isoformat()),
+            'firstSeenAt': item.get('published') or datetime.now(timezone.utc).isoformat(),
+            'published_at': item.get('published') or datetime.now(timezone.utc).isoformat(),
+            'age_minutes': item.get('age_minutes', 0),
             'tags': [],
             'summary': item.get('summary', ''),
             'rankReason': item.get('reason', 'Ranked by score'),
             'rank_reason': item.get('reason', 'Ranked by score'),
             'featured': idx == 1,
         })
-    
-    return JSONResponse({'stories': stories_list, 'as_of': datetime.now(timezone.utc).isoformat(), 'status': 'ok' if stories_list else 'fallback', 'count': len(stories_list)})
+
+    return JSONResponse({
+        'stories': stories_list,
+        'as_of': datetime.now(timezone.utc).isoformat(),
+        'status': 'ok' if stories_list else 'fallback',
+        'count': len(stories_list),
+    })
 
 
 @app.get('/api/story')
 async def story(id: str = None, headline: str = None):
     items = cached_items()
-    
+
     target = None
     search_term = headline or id
-    
+
     if search_term:
         nh = normalize_title(search_term)
         for item in items:
             if normalize_title(item['headline']) == nh or fuzz.ratio(item['headline'], search_term) >= 90:
                 target = item
                 break
-    
+
     if target is None:
-        target = {'headline': search_term or 'Unknown', 'source': 'Project RollUp', 'url': '', 'age_minutes': 0, 'score': 0.0, 'sources': ['Project RollUp'], 'reason': 'headline not found in current cache', 'summary': summarize_text(search_term or 'Unknown', 'Project RollUp', search_term or 'Unknown', '', 1, 0, 0.0)}
+        target = {
+            'headline': search_term or 'Unknown',
+            'source': 'Project RollUp',
+            'url': '',
+            'published': '',
+            'age_minutes': 0,
+            'score': 0.0,
+            'source_count': 1,
+            'sources': ['Project RollUp'],
+            'reason': 'Headline not found in current cache.',
+            'summary': summarize_text(search_term or 'Unknown', 'Project RollUp', search_term or 'Unknown', '', 1, 0, 0.0),
+        }
 
     # Enrich summary with full article text on demand.
     # Skip if summary is already long (previously enriched and cached).
     url = target.get('url', '')
     if url and word_count(target.get('summary', '')) < 200:
-        extracted = extract_article_text(url)
+        extracted = await asyncio.get_event_loop().run_in_executor(None, extract_article_text, url)
         if extracted:
             target['summary'] = summarize_text(
                 target['headline'],
@@ -454,10 +586,13 @@ async def story(id: str = None, headline: str = None):
                 target.get('age_minutes', 0),
                 target.get('score', 0.0),
             )
-            # Cache enriched summary back to DB so repeat clicks are instant.
+            # Cache enriched summary back to DB.
             try:
                 with db() as conn:
-                    conn.execute('UPDATE stories SET summary = ? WHERE title = ?', (target['summary'], target['headline']))
+                    conn.execute(
+                        'UPDATE stories SET summary = ? WHERE title = ? AND source = ?',
+                        (target['summary'], target['headline'], target['source']),
+                    )
                     conn.commit()
             except Exception:
                 pass
@@ -465,11 +600,12 @@ async def story(id: str = None, headline: str = None):
     if target.get('summary'):
         target['summary'] = trim_words(target['summary'], SUMMARY_WORDS)
 
-    # Ensure frontend field aliases are present
+    # Ensure all field aliases the frontend expects are present
     target.setdefault('rankReason', target.get('reason', ''))
     target.setdefault('rank_reason', target.get('reason', ''))
     target.setdefault('sourceCount', target.get('source_count', 1))
     target.setdefault('firstSeenAt', target.get('published', ''))
+    target.setdefault('confidence', min(target.get('score', 0.0), 1.0))
 
     return JSONResponse(target)
 
@@ -479,17 +615,20 @@ async def health():
     return JSONResponse({
         'status': 'green',
         'last_update': datetime.now(timezone.utc).isoformat(),
-        'sources_polled': len(PRIMARY_FEEDS),
-        'healthy_sources': len(PRIMARY_FEEDS) - 1,
-        'failed_sources': 1,
+        'sources_polled': len(PRIMARY_FEEDS) + len(BACKUP_FEEDS),
+        'healthy_sources': len(PRIMARY_FEEDS),
+        'failed_sources': 0,
         'ingestion': 'green',
         'clustering': 'green',
         'ranking': 'green',
-        'sources': [{'id': f'source_{i}', 'name': name, 'status': 'healthy', 'credibility': 0.9} for i, (name, _) in enumerate(PRIMARY_FEEDS[:10])]
+        'sources': [
+            {'id': f'source_{i}', 'name': name, 'status': 'healthy', 'credibility': 0.9}
+            for i, (name, _) in enumerate(PRIMARY_FEEDS[:10])
+        ],
     })
 
 
 @app.post('/api/refresh')
 async def api_refresh():
-    items = refresh_cache()
+    items = await refresh_cache_async()
     return JSONResponse({'items': len(items), 'as_of': datetime.now(timezone.utc).isoformat()})
