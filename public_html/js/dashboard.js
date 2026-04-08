@@ -6,7 +6,7 @@ let sources = [];
 
 // ── API Endpoints ───────────────────────────────────────
 
-const API_BASE = window.location.origin; // Same origin as Flask app
+const API_BASE = 'https://projectrollup.onrender.com'; // Backend API URL
 const USE_MOCK = false; // Set to true to use mock data instead of API
 
 async function fetchStories() {

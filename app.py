@@ -34,15 +34,8 @@ FEED_TIMEOUT = 10  # Timeout per feed request in seconds
 app = FastAPI(title='Project RollUp')
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        'https://projectrollup.com',
-        'http://projectrollup.com',
-        'https://www.projectrollup.com',
-        'http://www.projectrollup.com',
-        'http://localhost:8791',
-        'http://127.0.0.1:8791',
-    ],
-    allow_credentials=True,
+    allow_origins=['*'],  # Allow all origins for now - tighten later
+    allow_credentials=False,  # Must be False when allow_origins is *
     allow_methods=['*'],
     allow_headers=['*'],
 )
