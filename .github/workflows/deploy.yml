@@ -1,0 +1,44 @@
+name: Deploy to Hosting
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # ───────────────────────────────────────────────────────────────
+      # DEPLOYMENT OPTIONS — Uncomment the one you use
+      # ───────────────────────────────────────────────────────────────
+
+      # ── OPTION A: FTP Deploy (most shared hosts) ──────────────────
+      # - name: Deploy via FTP
+      #   uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+      #   with:
+      #     server: ${{ secrets.FTP_SERVER }}
+      #     username: ${{ secrets.FTP_USERNAME }}
+      #     password: ${{ secrets.FTP_PASSWORD }}
+      #     local-dir: ./public_html/
+      #     server-dir: /public_html/
+
+      # ── OPTION B: SFTP/SSH Deploy (VPS) ───────────────────────────
+      # - name: Deploy via SFTP
+      #   uses: appleboy/scp-action@v0.1.7
+      #   with:
+      #     host: ${{ secrets.SSH_HOST }}
+      #     username: ${{ secrets.SSH_USERNAME }}
+      #     key: ${{ secrets.SSH_PRIVATE_KEY }}
+      #     source: "public_html/*"
+      #     target: "/var/www/html/"
+
+      # ── OPTION C: cPanel Git Deploy ────────────────────────────────
+      # No action needed — cPanel reads .cpanel.yml automatically
+      # Create .cpanel.yml in repo root with deployment instructions
+
+      # ───────────────────────────────────────────────────────────────
+
+      - name: Placeholder Deploy Step
+        run: echo "Configure deploy method — see comments above"
