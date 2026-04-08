@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project RollUp — Intelligence Dashboard</title>
+  <meta name="description" content="Source-diverse news intelligence. Clustered, ranked, and signal-first.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/animations.css">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+</head>
+<body>
+
+  <header class="site-header" id="site-header">
+    <div class="header-left">
+      <div class="logo">PROJECT ROLLUP</div>
+      <div class="tagline">INTELLIGENCE DASHBOARD</div>
+    </div>
+    <div class="header-right">
+      <div class="mission-status">
+        <span class="live-dot" id="status-dot"></span>
+        <span class="mono" id="mission-status-text">MISSION STATUS: GREEN</span>
+      </div>
+      <div class="header-stats mono">
+        LAST REFRESH: <span id="last-refresh">—</span> &nbsp;|&nbsp;
+        SOURCES: <span id="source-count">—</span> &nbsp;|&nbsp;
+        HEALTHY: <span id="healthy-count">—</span> &nbsp;|&nbsp;
+        <span class="text-warning">FAILED: <span id="failed-count">—</span></span>
+      </div>
+    </div>
+  </header>
+
+  <div class="dashboard-grid">
+
+    <main class="main-feed">
+      <div class="panel">
+        <div class="panel-header">PRIORITY SIGNALS</div>
+        <div class="panel-body" id="feed"></div>
+      </div>
+    </main>
+
+    <aside class="side-column">
+      <div class="panel">
+        <div class="panel-header">SYSTEM STATUS</div>
+        <div class="panel-body" id="system-status"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">SOURCE HEALTH</div>
+        <div class="panel-body" id="source-health"></div>
+      </div>
+      <div class="panel">
+        <div class="panel-header">COVERAGE THEATER</div>
+        <div class="panel-body" id="coverage-theater"></div>
+      </div>
+    </aside>
+
+  </div>
+
+  <div class="modal-overlay" id="briefing-modal" style="display:none" onclick="closeBriefing()">
+    <div class="modal-content" id="briefing-content" onclick="event.stopPropagation()"></div>
+  </div>
+
+  <script src="js/data.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/filters.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>

@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Methodology — Project RollUp</title>
+  <meta name="description" content="How Project RollUp ranks, clusters, and surfaces news signals.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <style>
+    .methodology-content {
+      max-width: 800px;
+      margin: 48px auto;
+      padding: 0 24px;
+    }
+    .methodology-content h1 {
+      font-family: var(--font-mono);
+      font-size: 28px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--color-green);
+      margin-bottom: 32px;
+    }
+    .methodology-content h2 {
+      font-family: var(--font-mono);
+      font-size: 18px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-gold);
+      margin-top: 48px;
+      margin-bottom: 16px;
+    }
+    .methodology-content p {
+      font-size: 16px;
+      line-height: 1.7;
+      color: var(--color-text);
+      margin-bottom: 16px;
+    }
+    .methodology-content ul {
+      margin-left: 24px;
+      margin-bottom: 16px;
+    }
+    .methodology-content li {
+      font-size: 16px;
+      line-height: 1.7;
+      color: var(--color-text);
+      margin-bottom: 8px;
+    }
+    .methodology-content code {
+      font-family: var(--font-mono);
+      font-size: 14px;
+      background: var(--color-surface-2);
+      padding: 2px 6px;
+      border-radius: 2px;
+      color: var(--color-green);
+    }
+    .back-link {
+      display: inline-block;
+      margin-bottom: 24px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-green);
+      text-decoration: none;
+    }
+    .back-link:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+
+  <header class="site-header">
+    <div class="header-left">
+      <div class="logo">PROJECT ROLLUP</div>
+      <div class="tagline">METHODOLOGY</div>
+    </div>
+  </header>
+
+  <div class="methodology-content">
+    <a href="index.html" class="back-link">← Back to Dashboard</a>
+
+    <h1>How We Rank News</h1>
+
+    <p>Most news feeds fail. They drown you in noise. They duplicate the same story a dozen times. They let one outlet dominate the conversation.</p>
+    
+    <p>Project RollUp is different. We surface signals, not headlines. Here's how.</p>
+
+    <h2>01 — The Signal Problem</h2>
+    
+    <p>News aggregators typically just merge RSS feeds and call it a day. The result:</p>
+    
+    <ul>
+      <li>You see the same story 15 times from different outlets</li>
+      <li>Breaking news drowns out important slow-burn stories</li>
+      <li>One publisher's editorial bias can dominate your feed</li>
+      <li>No way to know if a story is confirmed or just one outlet's take</li>
+    </ul>
+
+    <p>We built RollUp to fix that.</p>
+
+    <h2>02 — How We Rank</h2>
+
+    <p>Every story gets a composite score based on four factors:</p>
+
+    <ul>
+      <li><strong>Recency (35%)</strong> — Breaking news matters, but not at the expense of everything else</li>
+      <li><strong>Source diversity (25%)</strong> — Stories confirmed by multiple outlets rank higher</li>
+      <li><strong>Credibility (25%)</strong> — Not all sources are equal; we weight by track record</li>
+      <li><strong>Cross-confirmation (15%)</strong> — Stories appearing in multiple feeds with matching facts get a boost</li>
+    </ul>
+
+    <p>No single factor dominates. A breaking story from one outlet won't bury a well-confirmed story from six.</p>
+
+    <h2>03 — Clustering</h2>
+
+    <p>When you see <code>4 SOURCES</code> on a card, that means we found four outlets reporting the same event with enough similarity to cluster them.</p>
+
+    <p>We use fuzzy matching on headlines and summaries to identify duplicates. Similar stories get grouped. One representative story surfaces. The rest are suppressed.</p>
+
+    <p>Result: you see the story once, with a source count that tells you how widely it's confirmed.</p>
+
+    <h2>04 — Bias Reduction</h2>
+
+    <p>No outlet gets to dominate the feed. If a single publisher has 10 stories in the top 50, we apply a balance penalty to prevent monoculture.</p>
+
+    <p>We also filter out opinion pieces, op-eds, and editorial content unless they're reporting new facts. Commentary doesn't rank.</p>
+
+    <p>Sources are weighted by credibility scores based on fact-checking records, corrections policies, and editorial standards.</p>
+
+    <h2>05 — What We Don't Claim</h2>
+
+    <p>We are <strong>not</strong> fully unbiased. No news system is.</p>
+
+    <p>Our source list reflects editorial choices. Our ranking weights reflect values (we prioritize confirmation over speed, for example).</p>
+
+    <p>What we <em>do</em> claim: we're transparent about our methodology, we don't let one outlet dominate, and we show you how many sources confirm each story.</p>
+
+    <h2>06 — Source Standards</h2>
+
+    <p>To qualify for the feed, an outlet must:</p>
+
+    <ul>
+      <li>Have a public corrections policy</li>
+      <li>Publish original reporting (not just aggregation)</li>
+      <li>Maintain editorial independence from political parties</li>
+      <li>Have a track record longer than 2 years</li>
+    </ul>
+
+    <p>We don't include random blogs, partisan outlets with no fact-checking, or sources that fail basic editorial standards.</p>
+
+    <p>Our source list is public. If you think we're missing a credible outlet, let us know.</p>
+
+    <h2>07 — In Practice</h2>
+
+    <p>Here's what you get:</p>
+
+    <ul>
+      <li>One story per event, not ten duplicates</li>
+      <li>Source counts so you know how confirmed it is</li>
+      <li>Confidence scores based on cross-source agreement</li>
+      <li>No opinion pieces unless they're reporting new facts</li>
+      <li>No single outlet dominating the conversation</li>
+    </ul>
+
+    <p>The feed updates every few minutes. Stories re-rank as new sources confirm them. Breaking news surfaces fast, but doesn't bury everything else.</p>
+
+    <h2>08 — Bottom Line</h2>
+
+    <p>Project RollUp is a disciplined intelligence terminal. Not a chatbot. Not a content farm. Not a clone of every other news site.</p>
+
+    <p>We surface signals. We cluster noise. We show you what's confirmed.</p>
+
+    <p>That's it.</p>
+
+    <hr style="border: none; height: 1px; background: var(--color-border); margin: 48px 0;">
+
+    <p style="font-size: 14px; color: var(--color-slate);">
+      Questions? Feedback? Found a bug? Reach out via the contact link in the footer.
+    </p>
+
+    <a href="index.html" class="back-link">← Back to Dashboard</a>
+
+  </div>
+
+</body>
+</html>
