@@ -508,7 +508,7 @@ function renderSummary(raw) {
   const kpSection= kpSplit[1] || '';
 
   const bullets = kpSection
-    .split(/\n\n/)
+    .split(/\n/)
     .map(s => s.replace(/^•\s*/, '').trim())
     .filter(Boolean);
 
