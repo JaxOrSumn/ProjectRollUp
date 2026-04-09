@@ -421,11 +421,28 @@ async def fetch_feed_async(name: str, url: str) -> list:
             title = entry.get('title', '').strip()
             if not title:
                 continue
+            article_url = entry.get('link', '')
+
+            # ── Skip live blogs ───────────────────────────────────────────────
+            # Live blogs aggregate many unrelated stories under one headline.
+            # They produce compound titles and bodies that are factually
+            # disconnected from each other — skip them entirely.
+            if '/live/' in article_url.lower():
+                continue
+            # Strip live/breaking/rolling prefixes: "Australia News Live: ..."
+            title = re.sub(
+                r'^[\w\s]*(live|breaking|rolling|developing)\s*:\s*',
+                '', title, flags=re.I,
+            ).strip() or title
+            # Skip compound headlines — two or more unrelated stories joined by "; "
+            # e.g. "ASX to Slide; $1M Reward in NSW Murder"
+            if re.search(r';\s+[A-Z]', title):
+                continue
+
             published = parse_ts(entry)
             age_minutes = int((datetime.now(timezone.utc) - published).total_seconds() / 60)
             if age_minutes < 0:
                 age_minutes = 0
-            article_url = entry.get('link', '')
             meta_summary = extract_meta_summary(entry)
             content_text = clean_text(meta_summary)
             entries.append({
