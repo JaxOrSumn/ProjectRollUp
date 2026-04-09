@@ -200,7 +200,7 @@ function exportReport(id) {
     `HEADLINE: ${story.headline || story.title || ''}`,
     `SOURCE:   ${story.source || ''}`,
     `TIME:     ${timeAgo(story.firstSeenAt || story.published_at)}`,
-    `SIGNAL:   ${signalStrength(story.confidence || 0).label}  (${Math.round((story.confidence || 0) * 100)}%)`,
+    `SIGNAL:   ${signalStrength(story.confidence || 0).label}`,
     `TAGS:     ${(story.tags || []).join(', ') || 'General'}`,
     '',
     story.summary || '',
@@ -296,8 +296,6 @@ function renderFeed() {
 
     const isPinned     = pinnedIds.includes(story.id);
     const sourceDisplay= story.source || 'Unknown';
-    const confPercent  = Math.round((story.confidence || 0) * 100);
-    const confBarColor = confColor(story.confidence || 0);
     const storyTags    = story.tags || [];
     const cardTagsHTML = storyTags.length
       ? `<div class="card-tags">${storyTags.map(t => `<span class="tag-chip ${TAG_COLORS[t] || ''}">${escapeHtml(t)}</span>`).join('')}</div>`
@@ -314,9 +312,6 @@ function renderFeed() {
         <div class="card-meta">
           <span class="card-source">${escapeHtml(sourceDisplay)}</span>
           <span class="source-count">${story.sourceCount || story.source_count || 1} SOURCES</span>
-          <div class="confidence-bar">
-            <div class="confidence-fill" style="width:${confPercent}%;background:${confBarColor};"></div>
-          </div>
         </div>
         ${cardTagsHTML}
         <div class="card-actions">
@@ -407,7 +402,6 @@ async function openBriefing(id) {
   const summary       = story.summary  || story.body || 'No summary available.';
   const sourceDisplay = story.source   || 'Unknown';
   const sourceCount   = story.sourceCount || story.source_count || 1;
-  const confPercent   = Math.round((story.confidence || 0) * 100);
   const firstSeen     = timeAgo(story.firstSeenAt || story.published_at);
   const tags          = story.tags || [];
   const rankReason    = story.rankReason || story.rank_reason || 'Signal ranked by freshness and source diversity.';
@@ -433,12 +427,16 @@ async function openBriefing(id) {
     : '<span style="color:var(--color-slate);font-size:12px;">No corroborating sources found</span>';
 
   // Task 14: Globe HTML
+  const locCoords = loc
+    ? `${Math.abs(loc.lat).toFixed(4)}°${loc.lat >= 0 ? 'N' : 'S'}\u00a0\u00a0${Math.abs(loc.lon).toFixed(4)}°${loc.lon >= 0 ? 'E' : 'W'}`
+    : '';
   const globeHTML = loc ? `
     <div class="globe-container">
       <div class="briefing-label" style="margin-bottom:10px;">SIGNAL ORIGIN:</div>
       <div class="globe-wrap">
-        <canvas id="briefing-globe" style="width:260px;height:260px;"></canvas>
+        <canvas id="briefing-globe" style="width:320px;height:320px;"></canvas>
       </div>
+      <div class="globe-coords">${locCoords}</div>
       <div class="globe-address">${escapeHtml(loc.address)}</div>
     </div>
   ` : '';
@@ -460,14 +458,6 @@ async function openBriefing(id) {
     <div class="briefing-section">
       <div class="briefing-label">SOURCES CORROBORATING:</div>
       <div class="corr-sources-row">${corrHTML}</div>
-    </div>
-
-    <div class="briefing-section">
-      <div class="briefing-label">CONFIDENCE:</div>
-      <div class="briefing-value" style="display:flex;align-items:center;gap:10px;">
-        <span class="strength-badge ${strength.cls}">${strength.label}</span>
-        <span style="color:var(--color-slate);font-size:11px;">${confPercent}%</span>
-      </div>
     </div>
 
     <div class="briefing-section">
@@ -498,8 +488,9 @@ async function openBriefing(id) {
   `;
 
   // Task 14: Boot the globe after DOM is ready
+  // 200ms gives the browser time to compute layout so canvas.offsetWidth is non-zero
   if (loc) {
-    setTimeout(() => initGlobe('briefing-globe', loc.lat, loc.lon, loc.address), 60);
+    setTimeout(() => initGlobe('briefing-globe', loc.lat, loc.lon, loc.address), 200);
   }
 }
 

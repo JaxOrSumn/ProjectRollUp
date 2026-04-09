@@ -139,7 +139,7 @@ function summarizeText(title, source, body, meta, sourceCount, ageMinutes, score
     words += c;
     if (words >= 280) break;
   }
-  const intro = `${title} is being tracked by Project RollUp from ${sourcePhrase}. It is ${ageMinutes} minutes old and currently carries a relevance score of ${score.toFixed(3)}.`;
+  const intro = `${title} is being tracked by Project RollUp from ${sourcePhrase}. It is ${ageMinutes} minutes old.`;
   const outro = 'This write-up is limited to sourced facts and reported details; it avoids speculation and preserves the article’s core informational content.';
   const summary = [intro, ...selectedSentences, outro].join(' ').replace(/\s+/g, ' ').trim();
   return summary.split(/\s+/).slice(0, 400).join(' ');
@@ -195,7 +195,6 @@ function renderList() {
       <article class='storyCard ${isSelected ? 'selected' : ''}' data-index='${i}' tabindex='0' role='button' aria-label='Open ${htmlesc(r.headline)}'>
         <div class='storyCardTop'>
           <h3 class='storyCardTitle'>${htmlesc(r.headline)}</h3>
-          <div class='storyCardScore'>${Number(r.score || 0).toFixed(3)}</div>
         </div>
         <div class='storyCardMeta'>
           <span class='chip'>${htmlesc(r.source || 'Unknown')}</span>
@@ -225,7 +224,7 @@ function renderDetail(story) {
   selectedStory = story;
   mapToGlobe(loc);
   els.detailTitle.textContent = story.headline;
-  els.detailMeta.textContent = `${story.source || 'Unknown source'} • ${story.displayTime || story.age || ''} • ${story.source_count ?? 1} source${(story.source_count ?? 1) === 1 ? '' : 's'} • score ${Number(story.score || 0).toFixed(3)}`;
+  els.detailMeta.textContent = `${story.source || 'Unknown source'} • ${story.displayTime || story.age || ''} • ${story.source_count ?? 1} source${(story.source_count ?? 1) === 1 ? '' : 's'}`;
   els.detailSummary.textContent = story.summary || 'No summary available.';
   els.detailFacts.innerHTML = [
     ['Location', loc.label || 'Unknown'],
@@ -233,7 +232,6 @@ function renderDetail(story) {
     ['Published', story.displayTime || 'Unknown'],
     ['Source count', String(story.source_count ?? 1)],
     ['Age', story.age || 'Unknown'],
-    ['Confidence', `${Math.round((loc.confidence || 0) * 100)}%`],
   ].map(([k, v]) => `<div class='factRow'><div class='factLabel'>${htmlesc(k)}</div><div class='factValue'>${htmlesc(v)}</div></div>`).join('');
   els.openSummaryBtn.disabled = false;
 }
@@ -272,7 +270,7 @@ function openSummary(story) {
     })
     .then((data) => {
       const body = data.summary || story.summary || 'No summary available.';
-      const meta = `${data.source || story.source || 'Project RollUp'} • ${data.age_minutes ?? story.age_minutes ?? 0}m • score ${Number(data.score || 0).toFixed(3)}`;
+      const meta = `${data.source || story.source || 'Project RollUp'} • ${data.age_minutes ?? story.age_minutes ?? 0}m`;
       summaryCache.set(key, { meta, body });
       els.summaryMeta.textContent = meta;
       els.summaryBody.textContent = body;

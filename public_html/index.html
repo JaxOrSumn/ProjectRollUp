@@ -93,7 +93,7 @@
       <div class="welcome-subtitle">Intelligence Dashboard &nbsp;&middot;&nbsp; Signal-First News</div>
       <div class="welcome-body">
         <p>Project RollUp is a real-time news intelligence dashboard. It continuously monitors <strong style="color:var(--color-green)">40+ global sources</strong> — wire services, investigative outlets, science journals, and more — and surfaces the stories that matter most.</p>
-        <p>Every headline is automatically <strong style="color:var(--color-green)">clustered, ranked, and scored</strong> based on freshness, how many independent outlets are covering it, and editorial velocity. The higher the rank, the stronger the signal.</p>
+        <p>Every headline is automatically <strong style="color:var(--color-green)">clustered and ranked</strong> based on freshness, how many independent outlets are covering it, and editorial velocity. The higher the rank, the stronger the signal.</p>
         <p>Click <strong style="color:var(--color-green)">OPEN BRIEFING</strong> on any story to read a fact-based write-up, see which other outlets are corroborating the story, and view a live globe showing where the source outlet is based.</p>
       </div>
       <div class="welcome-signature">Enjoy the brief, Commander.</div>
@@ -104,6 +104,11 @@
   </div>
 
   <!-- ── Scripts ─────────────────────────────────────── -->
+  <!-- D3 v7 full UMD bundle + TopoJSON — required by globe.js -->
+  <!-- d3-geo@3+ is pure ESM and has no UMD build; d3@7 ships a proper UMD bundle -->
+  <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
+
   <script src="js/data.js"></script>
   <script src="js/utils.js"></script>
   <script src="js/filters.js"></script>

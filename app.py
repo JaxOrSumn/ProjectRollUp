@@ -320,7 +320,10 @@ _BOILERPLATE = re.compile(
     r'is being tracked by project rollup|'
     r'this write-up stays within|'
     r'avoids speculation|'
-    r'currently carries a relevance score',
+    r'currently carries a relevance score|'
+    r'click here|read more|subscribe|sign up|all rights reserved|'
+    r'terms of (use|service)|privacy policy|cookie|newsletter|'
+    r'follow us|share this|advertisement|sponsored|related article',
     re.I,
 )
 
@@ -342,10 +345,11 @@ def summarize_text(title: str, source: str, body: str, meta: str, source_count: 
     meta = _strip_artifacts(clean_text(meta))
     source_phrase = f'{source}' if source_count == 1 else f'{source} and {source_count - 1} other source(s)'
     title_norm = normalize_title(title).lower()
+    title_words = {w for w in title_norm.split() if len(w) > 3}
 
-    sentences: list[str] = []
+    indexed: list[tuple[int, str]] = []
     raw_chunks = re.split(r'(?<=[.!?])\s+|;\s*', f'{meta} {body}')
-    for chunk in raw_chunks:
+    for i, chunk in enumerate(raw_chunks):
         chunk = _strip_artifacts(chunk.strip())
         if not chunk or len(chunk) < 25:
             continue
@@ -356,28 +360,26 @@ def summarize_text(title: str, source: str, body: str, meta: str, source_count: 
         if chunk.count(',') > 4:
             continue
         chunk_norm = normalize_title(chunk).lower()
-        if any(fuzz.ratio(chunk_norm, normalize_title(s).lower()) > 72 for s in sentences):
+        if any(fuzz.ratio(chunk_norm, normalize_title(s).lower()) > 72 for _, s in indexed):
             continue
         words = chunk.split()
-        if len(words) > 50:
-            chunk = ' '.join(words[:50])
-        sentences.append(chunk)
+        if len(words) > 40:
+            chunk = ' '.join(words[:40])
+        indexed.append((i, chunk))
 
-    if not sentences:
-        sentences = [meta or body or title]
+    if not indexed:
+        indexed = [(0, meta or body or title)]
 
-    lead = ' '.join(sentences[:2])
-    key_points = sentences[2:7]
+    # Score by keyword overlap with title, pick top 3 in original order
+    def relevance(item: tuple[int, str]) -> int:
+        sent_words = {w for w in normalize_title(item[1]).lower().split() if len(w) > 3}
+        return len(sent_words & title_words)
 
-    attribution = f'Source: {source_phrase}  ·  {age_minutes} min ago  ·  Score {score:.3f}'
+    top = sorted(sorted(indexed, key=relevance, reverse=True)[:3], key=lambda x: x[0])
+    chosen = [s for _, s in top]
 
-    parts = [lead]
-    if key_points:
-        bullets = '\n\n'.join(f'• {s}' for s in key_points)
-        parts.append(f'Key Points:\n{bullets}')
-    parts.append(attribution)
-
-    return '\n\n'.join(parts)
+    attribution = f'Source: {source_phrase}  ·  {age_minutes} min ago'
+    return ' '.join(chosen) + '\n\n' + attribution
 
 
 def trim_words(text: str, limit: int = SUMMARY_WORDS) -> str:
