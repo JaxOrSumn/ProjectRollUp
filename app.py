@@ -375,11 +375,21 @@ def summarize_text(title: str, source: str, body: str, meta: str, source_count: 
         sent_words = {w for w in normalize_title(item[1]).lower().split() if len(w) > 3}
         return len(sent_words & title_words)
 
-    top = sorted(sorted(indexed, key=relevance, reverse=True)[:3], key=lambda x: x[0])
+    top = sorted(sorted(indexed, key=relevance, reverse=True)[:7], key=lambda x: x[0])
     chosen = [s for _, s in top]
 
+    lead = ' '.join(chosen[:2])
+    key_points = chosen[2:]
+
     attribution = f'Source: {source_phrase}  ·  {age_minutes} min ago'
-    return ' '.join(chosen) + '\n\n' + attribution
+
+    parts = [lead]
+    if key_points:
+        bullets = '\n'.join(f'• {s}' for s in key_points)
+        parts.append(f'Key Points:\n{bullets}')
+    parts.append(attribution)
+
+    return '\n\n'.join(parts)
 
 
 def trim_words(text: str, limit: int = SUMMARY_WORDS) -> str:
