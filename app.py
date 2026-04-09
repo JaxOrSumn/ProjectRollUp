@@ -257,54 +257,65 @@ _BOILERPLATE = re.compile(
 )
 
 
+_ARTIFACTS = re.compile(
+    r'\[[\u2026\.]{1,3}\]'           # […] or [...]
+    r'|read the full story at [^\.\n]+'  # "Read the full story at X"
+    r'|read more( at [^\.\n]+)?'     # "Read more" / "Read more at X"
+    r'|\.\.\.',                      # bare ellipsis
+    re.I,
+)
+
+
+def _strip_artifacts(text: str) -> str:
+    return re.sub(r'\s+', ' ', _ARTIFACTS.sub('', text)).strip()
+
+
 def summarize_text(title: str, source: str, body: str, meta: str, source_count: int, age_minutes: int, score: float) -> str:
-    body = clean_text(body)
-    meta = clean_text(meta)
+    body = _strip_artifacts(clean_text(body))
+    meta = _strip_artifacts(clean_text(meta))
     source_phrase = f'{source}' if source_count == 1 else f'{source} and {source_count - 1} other source(s)'
     title_norm = normalize_title(title).lower()
 
-    sentences = []
-    # Split on sentence-ending punctuation AND semicolons (handles "Headlines: A, B; C, D" lists)
-    raw_chunks = re.split(r'(?<=[.!?])\s+|;\s*', f'{meta}. {body}')
+    sentences: list[str] = []
+    raw_chunks = re.split(r'(?<=[.!?])\s+|;\s*', f'{meta} {body}')
     for chunk in raw_chunks:
-        chunk = chunk.strip()
-        if not chunk or chunk in sentences:
+        chunk = _strip_artifacts(chunk.strip())
+        if not chunk or len(chunk) < 25:
             continue
-        # Skip boilerplate from a previous summary pass
         if _BOILERPLATE.search(chunk):
             continue
-        # Skip sentences that are essentially just the headline repeated
+        # Skip if essentially just the headline
         if normalize_title(chunk).lower() == title_norm:
             continue
-        # Skip comma-dense chunks — these are headline list dumps (e.g. Democracy Now)
+        # Skip comma-dense headline list dumps
         if chunk.count(',') > 4:
             continue
-        # Cap runaway sentences at 45 words so one long chunk can't consume the whole summary
+        # Fuzzy near-duplicate check — catches slightly reworded repeats
+        chunk_norm = normalize_title(chunk).lower()
+        if any(fuzz.ratio(chunk_norm, normalize_title(s).lower()) > 72 for s in sentences):
+            continue
+        # Cap runaway sentences
         words = chunk.split()
-        if len(words) > 45:
-            chunk = ' '.join(words[:45])
+        if len(words) > 50:
+            chunk = ' '.join(words[:50])
         sentences.append(chunk)
 
-    selected = []
-    wc = 0
-    for sent in sentences:
-        sent_words = word_count(sent)
-        if wc + sent_words > SUMMARY_WORDS:
-            break
-        selected.append(sent)
-        wc += sent_words
-        if wc >= max(180, SUMMARY_WORDS - 60):
-            break
+    if not sentences:
+        sentences = [meta or body or title]
 
-    if not selected:
-        selected = [meta or body or title]
+    # ── Format: lead paragraph + Key Points ─────────────────────────────────
+    lead = ' '.join(sentences[:2])
+    key_points = sentences[2:7]  # up to 5 bullets
 
-    intro = f'"{title}" is being tracked by Project RollUp from {source_phrase}. It is {age_minutes} minutes old and currently carries a relevance score of {score:.3f}. '
-    outro = 'This write-up stays within the facts available from the story metadata and feed text and avoids speculation.'
-    summary = intro + ' '.join(selected)
-    if word_count(summary + ' ' + outro) <= SUMMARY_WORDS:
-        summary = summary + ' ' + outro
-    return trim_words(summary, SUMMARY_WORDS)
+    attribution = f'Source: {source_phrase}  ·  {age_minutes} min ago  ·  Score {score:.3f}'
+
+    parts = [lead]
+    if key_points:
+        bullets = '\n'.join(f'• {s}' for s in key_points)
+        parts.append(f'Key Points:\n{bullets}')
+    parts.append(attribution)
+
+    return '\n\n'.join(parts)
 
 
 def trim_words(text: str, limit: int = SUMMARY_WORDS) -> str:
@@ -733,9 +744,6 @@ async def story(id: str = None, headline: str = None):
                     conn.commit()
             except Exception:
                 pass
-
-    if target.get('summary'):
-        target['summary'] = trim_words(target['summary'], SUMMARY_WORDS)
 
     # Ensure all field aliases the frontend expects are present
     target.setdefault('rankReason', target.get('reason', ''))
