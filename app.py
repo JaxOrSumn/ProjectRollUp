@@ -311,7 +311,7 @@ def summarize_text(title: str, source: str, body: str, meta: str, source_count: 
 
     parts = [lead]
     if key_points:
-        bullets = '\n'.join(f'• {s}' for s in key_points)
+        bullets = '\n\n'.join(f'• {s}' for s in key_points)
         parts.append(f'Key Points:\n{bullets}')
     parts.append(attribution)
 
