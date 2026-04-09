@@ -17,30 +17,27 @@
   background: var(--color-green);
   display: inline-block;
   animation: pulse-green 2s ease-in-out infinite;
+  flex-shrink: 0;
 }
 
-.live-dot.amber {
-  background: var(--color-gold);
-  animation: none;
+.live-dot.amber { background: var(--color-gold);    animation: none; }
+.live-dot.red   { background: var(--color-warning); animation: none; }
+
+/* ── Task 16: Flash green on successful refresh ─────── */
+@keyframes flash-green {
+  0%   { box-shadow: 0 0 0 0   rgba(53, 255, 122, 0.9); }
+  50%  { box-shadow: 0 0 0 10px rgba(53, 255, 122, 0.3); }
+  100% { box-shadow: 0 0 0 0   rgba(53, 255, 122, 0);   }
 }
 
-.live-dot.red {
-  background: var(--color-warning);
-  animation: none;
+.live-dot.flash-green {
+  animation: flash-green 0.9s ease-out;
 }
 
 /* ── Fade-in for Cards Loading ──────────────────────── */
 @keyframes fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0);   }
 }
 
-.fade-in {
-  animation: fade-in 0.3s ease forwards;
-}
+.fade-in { animation: fade-in 0.3s ease forwards; }

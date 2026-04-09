@@ -1,71 +1,79 @@
 // ── Dashboard State ─────────────────────────────────────
-
 let stories = [];
 let systemState = {};
 let sources = [];
 
-// ── API Endpoints ───────────────────────────────────────
+// ── Persistent State (localStorage) ────────────────────
+let mutedSources = JSON.parse(localStorage.getItem('rollup_muted') || '[]');
+let pinnedIds    = JSON.parse(localStorage.getItem('rollup_pinned') || '[]');
+let readIds      = new Set(JSON.parse(localStorage.getItem('rollup_read') || '[]'));
+let searchQuery  = '';
 
-const API_BASE = 'https://projectrollup.onrender.com'; // Backend API URL
-const USE_MOCK = false; // Set to true to use mock data instead of API
+// ── Refresh Timing ──────────────────────────────────────
+const REFRESH_INTERVAL_SECS = 300; // 5 minutes, matches backend
+let _lastRefreshAt = Date.now();
+
+// ── API Endpoints ───────────────────────────────────────
+const API_BASE = 'https://projectrollup.onrender.com';
+const USE_MOCK = false;
+
+// ── Tag Colour Map (shared by feed cards + briefing modal) ──
+const TAG_COLORS = {
+  'Geopolitics':       'tag-geo',
+  'Tech':              'tag-tech',
+  'Economic':         'tag-econ',
+  'Scientific Reports':'tag-sci',
+  'Media':             'tag-media',
+  'Celebrity News':    'tag-celeb',
+  'General':           'tag-general',
+};
+
+// ── Fetch Functions ─────────────────────────────────────
 
 async function fetchStories() {
-  if (USE_MOCK) {
-    stories = MOCK_STORIES;
-    console.log('Using mock data:', stories.length, 'stories');
-    return;
-  }
+  if (USE_MOCK) { stories = MOCK_STORIES; return; }
   try {
-    console.log('Fetching from:', `${API_BASE}/api/stories`);
     const res = await fetch(`${API_BASE}/api/stories`);
-    console.log('Response status:', res.status);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
-    console.log('API response:', data);
     stories = data.stories || [];
-    console.log('Loaded stories:', stories.length);
+    hideError();
   } catch (err) {
-    console.error('Failed to fetch stories, falling back to mock:', err);
-    stories = MOCK_STORIES;
-    console.log('Fallback to mock:', stories.length, 'stories');
+    console.error('Failed to fetch stories:', err);
+    showError(err.message);
+    if (!stories.length) stories = MOCK_STORIES;
   }
 }
 
 async function fetchSystemState() {
-  if (USE_MOCK) {
-    systemState = SYSTEM_STATE;
-    sources = MOCK_SOURCES;
-    return;
-  }
+  if (USE_MOCK) { systemState = SYSTEM_STATE; sources = MOCK_SOURCES; return; }
   try {
     const res = await fetch(`${API_BASE}/api/health`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     systemState = {
-      missionStatus: data.status || 'green',
-      lastRefresh: data.last_update || new Date().toISOString(),
-      sourcesPolled: data.sources_polled || 0,
+      missionStatus:  data.status      || 'green',
+      lastRefresh:    data.last_update || new Date().toISOString(),
+      sourcesPolled:  data.sources_polled  || 0,
       healthySources: data.healthy_sources || 0,
-      failedSources: data.failed_sources || 0,
-      ingestion: data.ingestion || 'green',
+      failedSources:  data.failed_sources  || 0,
+      ingestion:  data.ingestion  || 'green',
       clustering: data.clustering || 'green',
-      ranking: data.ranking || 'green',
-      apiStatus: 'green',
+      ranking:    data.ranking    || 'green',
+      apiStatus:  'green',
     };
     sources = data.sources || MOCK_SOURCES;
   } catch (err) {
-    console.error('Failed to fetch system state, falling back to mock:', err);
+    console.error('Failed to fetch system state:', err);
     systemState = SYSTEM_STATE;
     sources = MOCK_SOURCES;
   }
 }
 
 async function fetchStoryDetail(id) {
-  if (USE_MOCK) {
-    return MOCK_STORIES.find(s => s.id === id);
-  }
+  if (USE_MOCK) return MOCK_STORIES.find(s => s.id === id);
   const localStory = stories.find(s => s.id === id);
-  const headline = localStory?.headline || localStory?.title;
+  const headline   = localStory?.headline || localStory?.title;
   try {
     const param = headline
       ? `headline=${encodeURIComponent(headline)}`
@@ -79,70 +87,241 @@ async function fetchStoryDetail(id) {
   }
 }
 
+// ── Error State UI (Task 18) ────────────────────────────
+
+function showError(reason) {
+  hideError();
+  const feed = document.getElementById('feed');
+  if (!feed) return;
+  let secs = 30;
+  const el = document.createElement('div');
+  el.id = 'error-state';
+  el.className = 'error-state';
+  el.innerHTML = `
+    <div class="error-icon">&#9888;</div>
+    <div class="error-title">SIGNAL LOST</div>
+    <div class="error-detail">Backend unreachable — ${escapeHtml(reason)}</div>
+    <div class="error-retry">Retrying in <span id="error-countdown">${secs}</span>s&hellip;</div>
+    <button class="btn btn-primary" style="margin-top:12px;" onclick="retryNow()">RETRY NOW</button>
+  `;
+  feed.insertBefore(el, feed.firstChild);
+  window._errorRetryTimer = setInterval(() => {
+    secs--;
+    const cd = document.getElementById('error-countdown');
+    if (cd) cd.textContent = secs;
+    if (secs <= 0) { clearInterval(window._errorRetryTimer); retryNow(); }
+  }, 1000);
+}
+
+function hideError() {
+  const el = document.getElementById('error-state');
+  if (el) el.remove();
+  if (window._errorRetryTimer) { clearInterval(window._errorRetryTimer); window._errorRetryTimer = null; }
+}
+
+async function retryNow() {
+  hideError();
+  await refresh();
+}
+
+// ── Search (Task 15) ────────────────────────────────────
+
+function onSearchInput(val) {
+  searchQuery = val.trim().toLowerCase();
+  document.getElementById('search-clear').style.display = searchQuery ? 'inline-block' : 'none';
+  renderFeed();
+}
+
+function clearSearch() {
+  searchQuery = '';
+  const inp = document.getElementById('headline-search');
+  if (inp) inp.value = '';
+  document.getElementById('search-clear').style.display = 'none';
+  renderFeed();
+}
+
+function highlightMatch(text, query) {
+  if (!query) return escapeHtml(text);
+  const safe = escapeHtml(text);
+  const re   = new RegExp(`(${escapeHtml(query).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  return safe.replace(re, '<mark class="search-highlight">$1</mark>');
+}
+
+// ── Read / Unread (Task 17) ─────────────────────────────
+
+function markRead(id) {
+  readIds.add(id);
+  localStorage.setItem('rollup_read', JSON.stringify([...readIds]));
+}
+
+function markAllRead() {
+  stories.forEach(s => readIds.add(s.id));
+  localStorage.setItem('rollup_read', JSON.stringify([...readIds]));
+  renderFeed();
+}
+
+// ── Mute Source (Task 6) ────────────────────────────────
+
+function muteSource(sourceName) {
+  if (!mutedSources.includes(sourceName)) {
+    mutedSources.push(sourceName);
+    localStorage.setItem('rollup_muted', JSON.stringify(mutedSources));
+  }
+  closeBriefing();
+  renderFeed();
+}
+
+function unmuteAll() {
+  mutedSources = [];
+  localStorage.removeItem('rollup_muted');
+  renderFeed();
+}
+
+// ── Pin Signal (Task 6) ─────────────────────────────────
+
+function pinSignal(id) {
+  if (pinnedIds.includes(id)) {
+    pinnedIds = pinnedIds.filter(p => p !== id);
+  } else {
+    pinnedIds.push(id);
+  }
+  localStorage.setItem('rollup_pinned', JSON.stringify(pinnedIds));
+  renderFeed();
+}
+
+// ── Export Report (Task 6) ──────────────────────────────
+
+function exportReport(id) {
+  const story = stories.find(s => s.id === id);
+  if (!story) return;
+  const text = [
+    'PROJECT ROLLUP — SIGNAL BRIEFING',
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+    `HEADLINE: ${story.headline || story.title || ''}`,
+    `SOURCE:   ${story.source || ''}`,
+    `TIME:     ${timeAgo(story.firstSeenAt || story.published_at)}`,
+    `SIGNAL:   ${signalStrength(story.confidence || 0).label}  (${Math.round((story.confidence || 0) * 100)}%)`,
+    `TAGS:     ${(story.tags || []).join(', ') || 'General'}`,
+    '',
+    story.summary || '',
+    '',
+    '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+    `Exported from Project RollUp — ${new Date().toUTCString()}`,
+  ].join('\n');
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('.briefing-actions .btn-export');
+    if (btn) {
+      const orig = btn.textContent;
+      btn.textContent = 'COPIED!';
+      setTimeout(() => { btn.textContent = orig; }, 2000);
+    }
+  }).catch(() => {
+    // Fallback: open in new window
+    const w = window.open('', '_blank');
+    if (w) { w.document.write(`<pre>${text}</pre>`); w.document.close(); }
+  });
+}
+
+// ── Permalink / Deep Link (Task 19) ────────────────────
+
+function storyToHash(story) {
+  const raw = (story.headline || story.title || '') + '|' + (story.source || '');
+  let h = 0;
+  for (let i = 0; i < raw.length; i++) {
+    h = Math.imul(31, h) + raw.charCodeAt(i) | 0;
+  }
+  return 'signal-' + Math.abs(h).toString(36);
+}
+
+function updateURLForStory(story) {
+  if (!story) return;
+  history.replaceState(null, '', '#' + storyToHash(story));
+}
+
+function clearURLHash() {
+  history.replaceState(null, '', window.location.pathname + window.location.search);
+}
+
 // ── Render Functions ────────────────────────────────────
 
 function renderHeader() {
-  const statusDot = document.getElementById('status-dot');
-  const statusText = document.getElementById('mission-status-text');
+  const statusDot   = document.getElementById('status-dot');
+  const statusText  = document.getElementById('mission-status-text');
   const lastRefresh = document.getElementById('last-refresh');
   const sourceCount = document.getElementById('source-count');
-  const healthyCount = document.getElementById('healthy-count');
+  const healthyCount= document.getElementById('healthy-count');
   const failedCount = document.getElementById('failed-count');
 
   const status = systemState.missionStatus || 'green';
   statusDot.className = 'live-dot';
   if (status === 'amber' || status === 'degraded') statusDot.classList.add('amber');
-  if (status === 'red' || status === 'failed') statusDot.classList.add('red');
+  if (status === 'red'   || status === 'failed')   statusDot.classList.add('red');
 
-  statusText.textContent = `MISSION STATUS: ${status.toUpperCase()}`;
+  statusText.textContent  = `MISSION STATUS: ${status.toUpperCase()}`;
   lastRefresh.textContent = timeAgo(systemState.lastRefresh || new Date().toISOString());
-  sourceCount.textContent = systemState.sourcesPolled || '—';
+  sourceCount.textContent  = systemState.sourcesPolled  || '—';
   healthyCount.textContent = systemState.healthySources || '—';
-  failedCount.textContent = systemState.failedSources || '—';
+  failedCount.textContent  = systemState.failedSources  || '—';
 }
 
 function renderFeed() {
   const feed = document.getElementById('feed');
-  if (!feed) {
-    console.error('Feed container #feed not found in DOM');
-    return;
-  }
-  
-  const filtered = filterStories(stories);
-  console.log('Rendering feed with', filtered.length, 'filtered stories');
+  if (!feed) return;
 
-  if (filtered.length === 0) {
-    console.warn('No stories to display');
-    feed.innerHTML = '<p style="color: var(--color-slate); text-align: center; padding: 24px;">No signals match current filters.</p>';
-    return;
+  // Filter + search
+  let filtered = filterStories(stories);
+  if (searchQuery) {
+    filtered = filtered.filter(s => {
+      const hay = ((s.headline || s.title || '') + ' ' + (s.summary || '')).toLowerCase();
+      return hay.includes(searchQuery);
+    });
   }
 
-  feed.innerHTML = filtered.map(story => {
-    const cardClass = ['signal-card', 'fade-in'];
-    if (story.featured) cardClass.push('featured');
-    if (story.rank === 1) cardClass.push('top-signal');
+  // Pinned items float to top
+  const sorted = [
+    ...filtered.filter(s => pinnedIds.includes(s.id)),
+    ...filtered.filter(s => !pinnedIds.includes(s.id)),
+  ];
 
-    const sourceDisplay = story.source || 'Unknown';
-    const confPercent = Math.round((story.confidence || 0) * 100);
+  if (sorted.length === 0) {
+    feed.innerHTML = '<p style="color:var(--color-slate);text-align:center;padding:24px;">No signals match current filters.</p>';
+    return;
+  }
+
+  feed.innerHTML = sorted.map(story => {
+    const cardClass   = ['signal-card', 'fade-in'];
+    if (story.featured)     cardClass.push('featured');
+    if (story.rank === 1)   cardClass.push('top-signal');
+    if (!readIds.has(story.id)) cardClass.push('unread');
+
+    const isPinned     = pinnedIds.includes(story.id);
+    const sourceDisplay= story.source || 'Unknown';
+    const confPercent  = Math.round((story.confidence || 0) * 100);
     const confBarColor = confColor(story.confidence || 0);
+    const storyTags    = story.tags || [];
+    const cardTagsHTML = storyTags.length
+      ? `<div class="card-tags">${storyTags.map(t => `<span class="tag-chip ${TAG_COLORS[t] || ''}">${escapeHtml(t)}</span>`).join('')}</div>`
+      : '';
 
     return `
       <div class="${cardClass.join(' ')}" data-id="${escapeHtml(story.id)}" onclick="openBriefing('${escapeHtml(story.id)}')">
         <div class="card-header">
+          ${!readIds.has(story.id) ? '<span class="unread-dot"></span>' : ''}
           <div class="card-rank">#${story.rank}</div>
-          <div class="card-headline">${escapeHtml(story.headline || story.title)}</div>
+          <div class="card-headline">${highlightMatch(story.headline || story.title, searchQuery)}</div>
           <div class="card-time">${timeAgo(story.firstSeenAt || story.published_at)}</div>
         </div>
         <div class="card-meta">
           <span class="card-source">${escapeHtml(sourceDisplay)}</span>
           <span class="source-count">${story.sourceCount || story.source_count || 1} SOURCES</span>
           <div class="confidence-bar">
-            <div class="confidence-fill" style="width: ${confPercent}%; background: ${confBarColor};"></div>
+            <div class="confidence-fill" style="width:${confPercent}%;background:${confBarColor};"></div>
           </div>
         </div>
+        ${cardTagsHTML}
         <div class="card-actions">
-          <button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); openBriefing('${escapeHtml(story.id)}')">OPEN BRIEFING</button>
-          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); pinSignal('${escapeHtml(story.id)}')">PIN SIGNAL</button>
+          <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();openBriefing('${escapeHtml(story.id)}')">OPEN BRIEFING</button>
+          <button class="btn btn-ghost btn-sm ${isPinned ? 'btn-pinned' : ''}" onclick="event.stopPropagation();pinSignal('${escapeHtml(story.id)}')">${isPinned ? 'UNPIN' : 'PIN SIGNAL'}</button>
         </div>
       </div>
     `;
@@ -152,56 +331,45 @@ function renderFeed() {
 function renderSystemStatus() {
   const container = document.getElementById('system-status');
   const systems = [
-    { label: 'Ingestion', value: systemState.ingestion || 'unknown' },
+    { label: 'Ingestion',  value: systemState.ingestion  || 'unknown' },
     { label: 'Clustering', value: systemState.clustering || 'unknown' },
-    { label: 'Ranking', value: systemState.ranking || 'unknown' },
-    { label: 'API', value: systemState.apiStatus || 'unknown' },
+    { label: 'Ranking',    value: systemState.ranking    || 'unknown' },
+    { label: 'API',        value: systemState.apiStatus  || 'unknown' },
   ];
-
-  container.innerHTML = systems.map(sys => {
-    const badgeClass = statusClass(sys.value);
-    return `
-      <div class="status-row">
-        <span class="status-label">${sys.label}</span>
-        <span class="badge ${badgeClass}">${sys.value.toUpperCase()}</span>
-      </div>
-    `;
-  }).join('');
+  container.innerHTML = systems.map(sys => `
+    <div class="status-row">
+      <span class="status-label">${sys.label}</span>
+      <span class="badge ${statusClass(sys.value)}">${sys.value.toUpperCase()}</span>
+    </div>
+  `).join('');
 }
 
 function renderSourceHealth() {
   const container = document.getElementById('source-health');
-  const displaySources = sources.slice(0, 10); // Show top 10
-
+  const displaySources = sources.slice(0, 10);
   container.innerHTML = `
     <div class="source-list">
-      ${displaySources.map(src => {
-        const dotClass = statusClass(src.status);
-        return `
-          <div class="source-item">
-            <span class="source-name">${escapeHtml(src.name)}</span>
-            <span class="source-status">
-              <span class="badge ${dotClass}" style="padding: 2px 6px;">${src.status.toUpperCase()}</span>
-            </span>
-          </div>
-        `;
-      }).join('')}
+      ${displaySources.map(src => `
+        <div class="source-item">
+          <span class="source-name">${escapeHtml(src.name)}</span>
+          <span class="source-status">
+            <span class="badge ${statusClass(src.status)}" style="padding:2px 6px;">${src.status.toUpperCase()}</span>
+          </span>
+        </div>
+      `).join('')}
     </div>
   `;
 }
 
 function renderCoverageTheater() {
   const container = document.getElementById('coverage-theater');
-  const allTags = new Set();
-  stories.forEach(s => {
-    (s.tags || []).forEach(tag => allTags.add(tag));
-  });
+  const allTags   = new Set();
+  stories.forEach(s => (s.tags || []).forEach(tag => allTags.add(tag)));
 
   if (allTags.size === 0) {
-    container.innerHTML = '<p style="color: var(--color-slate); font-size: 12px;">No tags available</p>';
+    container.innerHTML = '<p style="color:var(--color-slate);font-size:12px;">No tags available</p>';
     return;
   }
-
   container.innerHTML = `
     <div class="tag-pills">
       ${Array.from(allTags).map(tag => {
@@ -215,111 +383,210 @@ function renderCoverageTheater() {
 // ── Briefing Modal ──────────────────────────────────────
 
 async function openBriefing(id) {
-  const modal = document.getElementById('briefing-modal');
+  const modal   = document.getElementById('briefing-modal');
   const content = document.getElementById('briefing-content');
 
   modal.style.display = 'flex';
-  content.innerHTML = '<p style="color: var(--color-slate);">Loading briefing...</p>';
+  content.innerHTML   = '<p style="color:var(--color-slate);">Loading briefing&hellip;</p>';
+
+  // Mark as read
+  markRead(id);
+  renderFeed();
+
+  // Update URL to permalink (Task 19)
+  const localStory = stories.find(s => s.id === id);
+  if (localStory) updateURLForStory(localStory);
 
   const story = await fetchStoryDetail(id);
   if (!story) {
-    content.innerHTML = '<p style="color: var(--color-warning);">Story not found.</p>';
+    content.innerHTML = '<p style="color:var(--color-warning);">Story not found.</p>';
     return;
   }
 
-  const headline = story.headline || story.title;
-  const summary = story.summary || story.body || 'No summary available.';
-  const sourceDisplay = story.repSource?.name || story.source || 'Unknown';
-  const sourceCount = story.sourceCount || story.source_count || 1;
-  const confPercent = Math.round((story.confidence || 0) * 100);
-  const firstSeen = timeAgo(story.firstSeenAt || story.published_at);
-  const tags = (story.tags || []).join(', ') || 'None';
-  const rankReason = story.rankReason || story.rank_reason || 'Not specified.';
+  const headline      = story.headline || story.title;
+  const summary       = story.summary  || story.body || 'No summary available.';
+  const sourceDisplay = story.source   || 'Unknown';
+  const sourceCount   = story.sourceCount || story.source_count || 1;
+  const confPercent   = Math.round((story.confidence || 0) * 100);
+  const firstSeen     = timeAgo(story.firstSeenAt || story.published_at);
+  const tags          = story.tags || [];
+  const rankReason    = story.rankReason || story.rank_reason || 'Signal ranked by freshness and source diversity.';
+  const extractNote   = story.extraction_note || '';
+  const loc           = story.source_location || null;
+
+  // Task 8: Signal strength label
+  const strength = signalStrength(story.confidence || 0);
+
+  // Rank reason segments
+  const reasonSegs    = rankReason.split('·').map(s => s.trim()).filter(Boolean);
+  const reasonHTML    = reasonSegs.map(seg => `<span class="rank-segment">${escapeHtml(seg)}</span>`).join('');
+
+  // Tag chips
+  const tagsHTML = tags.length
+    ? tags.map(t => `<span class="tag-chip ${TAG_COLORS[t] || ''}">${escapeHtml(t)}</span>`).join('')
+    : '<span style="color:var(--color-slate);font-size:12px;">Unclassified</span>';
+
+  // Task 13: Corroborating sources
+  const corr = story.corroborating_sources || [];
+  const corrHTML = corr.length > 0
+    ? corr.map(s => `<span class="corr-source">${escapeHtml(s)}</span>`).join('')
+    : '<span style="color:var(--color-slate);font-size:12px;">No corroborating sources found</span>';
+
+  // Task 14: Globe HTML
+  const globeHTML = loc ? `
+    <div class="globe-container">
+      <div class="briefing-label" style="margin-bottom:10px;">SIGNAL ORIGIN:</div>
+      <div class="globe-wrap">
+        <canvas id="briefing-globe" style="width:260px;height:260px;"></canvas>
+      </div>
+      <div class="globe-address">${escapeHtml(loc.address)}</div>
+    </div>
+  ` : '';
 
   content.innerHTML = `
     <div class="briefing-headline">${escapeHtml(headline)}</div>
     <div class="briefing-divider"></div>
+
     <div class="briefing-section">
-      <div class="briefing-label">WHY RANKED HERE:</div>
-      <div class="briefing-value">${escapeHtml(rankReason)}</div>
+      <div class="briefing-label">SIGNAL RANKING:</div>
+      <div class="rank-reason-row">${reasonHTML}</div>
     </div>
+
     <div class="briefing-section">
-      <div class="briefing-label">REPRESENTATIVE SOURCE:</div>
-      <div class="briefing-value">${escapeHtml(sourceDisplay)}</div>
+      <div class="briefing-label">SOURCE:</div>
+      <div class="briefing-value">${escapeHtml(sourceDisplay)} &nbsp;&middot;&nbsp; ${sourceCount} outlet${sourceCount === 1 ? '' : 's'} confirming</div>
     </div>
+
     <div class="briefing-section">
-      <div class="briefing-label">SOURCE COUNT:</div>
-      <div class="briefing-value">${sourceCount} outlets confirming</div>
+      <div class="briefing-label">SOURCES CORROBORATING:</div>
+      <div class="corr-sources-row">${corrHTML}</div>
     </div>
+
     <div class="briefing-section">
       <div class="briefing-label">CONFIDENCE:</div>
-      <div class="briefing-value">${confPercent}%</div>
+      <div class="briefing-value" style="display:flex;align-items:center;gap:10px;">
+        <span class="strength-badge ${strength.cls}">${strength.label}</span>
+        <span style="color:var(--color-slate);font-size:11px;">${confPercent}%</span>
+      </div>
     </div>
+
     <div class="briefing-section">
       <div class="briefing-label">FIRST SIGNAL:</div>
       <div class="briefing-value">${firstSeen}</div>
     </div>
+
     <div class="briefing-section">
       <div class="briefing-label">TAGS:</div>
-      <div class="briefing-value">${escapeHtml(tags)}</div>
+      <div class="tag-chip-row">${tagsHTML}</div>
     </div>
+
     <div class="briefing-divider"></div>
+
     <div class="briefing-section">
       <div class="briefing-label">SUMMARY:</div>
-      <div class="briefing-value">${escapeHtml(summary)}</div>
+      <div class="briefing-summary">${renderSummary(summary)}</div>
+      ${extractNote ? `<div class="extraction-note">&#9888; ${escapeHtml(extractNote)}</div>` : ''}
     </div>
+
     <div class="briefing-actions">
-      <button class="btn btn-primary" onclick="closeBriefing()">CLOSE</button>
-      <button class="btn btn-ghost" onclick="muteSource('${escapeHtml(sourceDisplay)}')">MUTE SOURCE</button>
-      <button class="btn btn-ghost" onclick="exportReport('${escapeHtml(story.id)}')">EXPORT REPORT</button>
+      <button class="btn btn-primary"    onclick="closeBriefing()">CLOSE</button>
+      <button class="btn btn-ghost"      onclick="muteSource('${escapeHtml(sourceDisplay)}')">MUTE SOURCE</button>
+      <button class="btn btn-ghost btn-export" onclick="exportReport('${escapeHtml(story.id || id)}')">EXPORT REPORT</button>
     </div>
+
+    ${globeHTML}
   `;
+
+  // Task 14: Boot the globe after DOM is ready
+  if (loc) {
+    setTimeout(() => initGlobe('briefing-globe', loc.lat, loc.lon, loc.address), 60);
+  }
+}
+
+function renderSummary(raw) {
+  if (!raw) return '<span style="color:var(--color-slate)">No summary available.</span>';
+
+  // Strip attribution line
+  const attrMatch  = raw.match(/\n\n(Source:.+)$/s);
+  const attribution= attrMatch ? attrMatch[1] : '';
+  const body       = attrMatch ? raw.slice(0, attrMatch.index) : raw;
+
+  // Split lead from Key Points
+  const kpSplit  = body.split(/\n\nKey Points:\n/);
+  const lead     = kpSplit[0] || '';
+  const kpSection= kpSplit[1] || '';
+
+  const bullets = kpSection
+    .split(/\n\n/)
+    .map(s => s.replace(/^•\s*/, '').trim())
+    .filter(Boolean);
+
+  let html = `<p class="summary-lead">${escapeHtml(lead)}</p>`;
+  if (bullets.length) {
+    html += `<div class="key-points-box">
+      <div class="kp-header">KEY POINTS</div>
+      ${bullets.map(b => `
+        <div class="kp-item">
+          <span class="kp-dot">•</span>
+          <span class="kp-text">${escapeHtml(b)}</span>
+        </div>`).join('')}
+    </div>`;
+  }
+  if (attribution) {
+    html += `<p class="summary-attribution">${escapeHtml(attribution)}</p>`;
+  }
+  return html;
 }
 
 function closeBriefing() {
   document.getElementById('briefing-modal').style.display = 'none';
+  stopGlobe();
+  clearURLHash();
 }
 
-function pinSignal(id) {
-  console.log('Pin signal:', id);
-  alert(`Signal #${id} pinned (feature not yet implemented)`);
+// ── Auto-Refresh Countdown (Task 16) ───────────────────
+
+function startRefreshCountdown() {
+  _lastRefreshAt = Date.now();
+  let secs = REFRESH_INTERVAL_SECS;
+  if (window._countdownTimer) clearInterval(window._countdownTimer);
+  window._countdownTimer = setInterval(() => {
+    secs--;
+    if (secs < 0) secs = REFRESH_INTERVAL_SECS;
+    const el = document.getElementById('refresh-countdown');
+    if (el) el.textContent = secs + 's';
+    const lr = document.getElementById('last-refresh');
+    if (lr) lr.textContent = timeAgo(new Date(_lastRefreshAt).toISOString());
+  }, 1000);
 }
 
-function muteSource(sourceName) {
-  console.log('Mute source:', sourceName);
-  alert(`Source "${sourceName}" muted (feature not yet implemented)`);
+function flashStatusGreen() {
+  const dot = document.getElementById('status-dot');
+  if (!dot) return;
+  dot.classList.add('flash-green');
+  setTimeout(() => dot.classList.remove('flash-green'), 900);
 }
 
-function exportReport(id) {
-  console.log('Export report:', id);
-  alert(`Export report for #${id} (feature not yet implemented)`);
-}
-
-// ── Refresh Cycle ───────────────────────────────────────
+// ── Main Refresh Cycle ──────────────────────────────────
 
 function startRefreshCycle() {
-  setInterval(() => {
-    renderHeader(); // Update timestamps
-  }, 60000); // Every 60 seconds
+  startRefreshCountdown();
+  setInterval(async () => {
+    await refresh();
+  }, REFRESH_INTERVAL_SECS * 1000);
 }
 
 async function refresh() {
-  console.log('=== REFRESH START ===');
   await fetchSystemState();
-  console.log('System state loaded:', systemState);
   await fetchStories();
-  console.log('Stories loaded:', stories.length);
   renderHeader();
-  console.log('Header rendered');
   renderFeed();
-  console.log('Feed rendered');
   renderSystemStatus();
-  console.log('System status rendered');
   renderSourceHealth();
-  console.log('Source health rendered');
   renderCoverageTheater();
-  console.log('Coverage theater rendered');
-  console.log('=== REFRESH COMPLETE ===');
+  _lastRefreshAt = Date.now();
+  startRefreshCountdown();
+  flashStatusGreen();
 }
 
 // ── Initialize ──────────────────────────────────────────
@@ -327,4 +594,11 @@ async function refresh() {
 document.addEventListener('DOMContentLoaded', async () => {
   await refresh();
   startRefreshCycle();
+
+  // Task 19: Auto-open story from URL hash on page load
+  const hash = window.location.hash.slice(1);
+  if (hash.startsWith('signal-')) {
+    const match = stories.find(s => storyToHash(s) === hash);
+    if (match) openBriefing(match.id);
+  }
 });

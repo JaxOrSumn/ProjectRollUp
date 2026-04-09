@@ -1,6 +1,7 @@
 /* ── Reset ──────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { font-size: 16px; scroll-behavior: smooth; }
+/* Task 3: Font size bumped one step 16px → 17px */
+html { font-size: 17px; scroll-behavior: smooth; }
 body {
   background-color: var(--color-base);
   color: var(--color-text);

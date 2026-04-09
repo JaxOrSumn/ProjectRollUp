@@ -23,11 +23,17 @@
   border-left-color: var(--color-green);
 }
 
+/* Task 17: Unread indicator on card */
+.signal-card.unread .card-headline {
+  color: #fff;
+  font-weight: 700;
+}
+
 .card-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
+  gap: 8px;
   margin-bottom: 8px;
 }
 
@@ -41,7 +47,7 @@
 
 .card-headline {
   flex: 1;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   line-height: 1.4;
   color: var(--color-text);
@@ -67,10 +73,29 @@
   color: var(--color-slate);
 }
 
+/* Task 2: Tag chips on feed cards */
+.card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+}
+
 .card-actions {
   display: flex;
   gap: 8px;
   margin-top: 12px;
+}
+
+/* Task 17: Unread dot indicator */
+.unread-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-green);
+  flex-shrink: 0;
+  margin-top: 4px;
+  box-shadow: 0 0 5px rgba(53,255,122,0.7);
 }
 
 /* ── Status Badge ───────────────────────────────────── */
@@ -87,22 +112,10 @@
   font-weight: 600;
 }
 
-.badge-green {
-  background: var(--color-green);
-  color: #000;
-}
-
-.badge-amber {
-  background: var(--color-gold);
-  color: #000;
-}
-
-.badge-red {
-  background: var(--color-warning);
-  color: #fff;
-}
-
-.badge-slate {
+.badge-green  { background: var(--color-green);   color: #000; }
+.badge-amber  { background: var(--color-gold);    color: #000; }
+.badge-red    { background: var(--color-warning); color: #fff; }
+.badge-slate  {
   background: var(--color-surface-2);
   color: var(--color-slate);
   border: 1px solid var(--color-border);
@@ -113,9 +126,9 @@
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 700;
-  background: rgba(53, 255, 122, 0.12);
+  background: rgba(53,255,122,0.12);
   color: var(--color-green);
-  border: 1px solid rgba(53, 255, 122, 0.25);
+  border: 1px solid rgba(53,255,122,0.25);
   padding: 2px 7px;
   border-radius: 2px;
   letter-spacing: 0.06em;
@@ -154,7 +167,6 @@
   border-color: var(--color-green);
   color: var(--color-green);
 }
-
 .btn-primary:hover {
   background: var(--color-green);
   color: #000;
@@ -164,11 +176,18 @@
   border-color: var(--color-border);
   color: var(--color-slate);
 }
-
 .btn-ghost:hover {
   border-color: var(--color-slate);
   color: var(--color-text);
 }
+
+/* Task 6: Pinned button highlight */
+.btn-pinned {
+  border-color: var(--color-gold) !important;
+  color: var(--color-gold) !important;
+}
+
+.btn-xs { font-size: 9px; padding: 3px 8px; }
 
 /* ── Tier Badges ────────────────────────────────────── */
 .tier {
@@ -180,27 +199,10 @@
   border-radius: 2px;
   border: 1px solid;
 }
-
-.tier-recruit {
-  border-color: var(--color-slate);
-  color: var(--color-slate);
-}
-
-.tier-operator {
-  border-color: var(--color-green);
-  color: var(--color-green);
-}
-
-.tier-commander {
-  border-color: var(--color-gold);
-  color: var(--color-gold);
-}
-
-.tier-command-staff {
-  border-color: var(--color-gold);
-  color: #000;
-  background: var(--color-gold);
-}
+.tier-recruit      { border-color: var(--color-slate); color: var(--color-slate); }
+.tier-operator     { border-color: var(--color-green); color: var(--color-green); }
+.tier-commander    { border-color: var(--color-gold);  color: var(--color-gold);  }
+.tier-command-staff{ border-color: var(--color-gold);  color: #000; background: var(--color-gold); }
 
 /* ── System Status Rows ─────────────────────────────── */
 .status-row {
@@ -210,10 +212,7 @@
   padding: 8px 0;
   border-bottom: 1px solid var(--color-border);
 }
-
-.status-row:last-child {
-  border-bottom: none;
-}
+.status-row:last-child { border-bottom: none; }
 
 .status-label {
   font-family: var(--font-mono);
@@ -230,11 +229,7 @@
 }
 
 /* ── Source Health List ─────────────────────────────── */
-.source-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
+.source-list  { display: flex; flex-direction: column; gap: 6px; }
 
 .source-item {
   display: flex;
@@ -243,12 +238,7 @@
   font-size: 12px;
   padding: 4px 0;
 }
-
-.source-name {
-  color: var(--color-text);
-  flex: 1;
-}
-
+.source-name   { color: var(--color-text); flex: 1; }
 .source-status {
   display: flex;
   align-items: center;
@@ -259,11 +249,7 @@
 }
 
 /* ── Coverage Theater (Tag Pills) ───────────────────── */
-.tag-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
+.tag-pills { display: flex; flex-wrap: wrap; gap: 6px; }
 
 .tag-pill {
   font-family: var(--font-mono);
@@ -278,15 +264,10 @@
   cursor: pointer;
   transition: all var(--transition);
 }
-
-.tag-pill:hover {
-  border-color: var(--color-green);
-  color: var(--color-green);
-}
-
+.tag-pill:hover { border-color: var(--color-green); color: var(--color-green); }
 .tag-pill.active {
   border-color: var(--color-green);
-  background: rgba(53, 255, 122, 0.12);
+  background: rgba(53,255,122,0.12);
   color: var(--color-green);
 }
 
@@ -308,9 +289,7 @@
   margin: 20px 0;
 }
 
-.briefing-section {
-  margin-bottom: 16px;
-}
+.briefing-section  { margin-bottom: 16px; }
 
 .briefing-label {
   font-family: var(--font-mono);
@@ -327,8 +306,321 @@
   color: var(--color-text);
 }
 
+/* ── Briefing Summary Layout ────────────────────────── */
+.briefing-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.summary-lead {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.key-points-box {
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-green);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.kp-header {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-green);
+  margin-bottom: 2px;
+}
+
+.kp-item { display: flex; align-items: flex-start; gap: 10px; }
+.kp-dot  { color: var(--color-green); font-size: 16px; line-height: 1.4; flex-shrink: 0; }
+.kp-text { font-size: 13px; line-height: 1.6; color: var(--color-text); }
+
+.summary-attribution {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--color-slate);
+  margin: 0;
+  padding-top: 4px;
+  border-top: 1px solid var(--color-border);
+}
+
 .briefing-actions {
   display: flex;
   gap: 12px;
   margin-top: 24px;
+  flex-wrap: wrap;
 }
+
+/* ── Rank Reason Row ────────────────────────────────── */
+.rank-reason-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.rank-segment {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-green);
+  background: rgba(53,255,122,0.08);
+  border: 1px solid rgba(53,255,122,0.2);
+  border-radius: 2px;
+  padding: 4px 10px;
+  letter-spacing: 0.04em;
+}
+
+/* ── Tag Chips (feed cards + briefing modal — shared) ── */
+.tag-chip-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+
+.tag-chip {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 9px;
+  border-radius: 2px;
+  border: 1px solid var(--color-border);
+  color: var(--color-slate);
+  background: var(--color-surface-2);
+}
+
+/* Task 2: Unified tag colours — same on cards and modal */
+.tag-geo     { border-color: #5c9eff; color: #5c9eff; background: rgba(92,158,255,0.08); }
+.tag-tech    { border-color: #35ff7a; color: #35ff7a; background: rgba(53,255,122,0.08); }
+.tag-econ    { border-color: #c7a34b; color: #c7a34b; background: rgba(199,163,75,0.08); }
+.tag-sci     { border-color: #c46eff; color: #c46eff; background: rgba(196,110,255,0.08); }
+.tag-media   { border-color: #ff9f43; color: #ff9f43; background: rgba(255,159,67,0.08); }
+.tag-celeb   { border-color: #ff6b9d; color: #ff6b9d; background: rgba(255,107,157,0.08); }
+.tag-general { border-color: var(--color-slate); color: var(--color-slate); background: var(--color-surface-2); }
+
+/* ── Task 13: Sources Corroborating ─────────────────── */
+.corr-sources-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+
+.corr-source {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 2px;
+  border: 1px solid rgba(53,255,122,0.2);
+  background: rgba(53,255,122,0.05);
+  color: var(--color-slate);
+  letter-spacing: 0.04em;
+}
+
+/* ── Task 8: Signal Strength Badge ──────────────────── */
+.strength-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  padding: 3px 10px;
+  border-radius: 2px;
+  border: 1px solid;
+}
+.strength-strong   { border-color: var(--color-green);   color: var(--color-green);   background: rgba(53,255,122,0.10); }
+.strength-moderate { border-color: var(--color-gold);    color: var(--color-gold);    background: rgba(199,163,75,0.10); }
+.strength-weak     { border-color: var(--color-warning); color: var(--color-warning); background: rgba(217,92,92,0.10); }
+
+/* ── Task 9: Extraction Note ────────────────────────── */
+.extraction-note {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-gold);
+  letter-spacing: 0.06em;
+  margin-top: 10px;
+  padding: 6px 10px;
+  border: 1px solid rgba(199,163,75,0.3);
+  border-radius: var(--radius-sm);
+  background: rgba(199,163,75,0.05);
+}
+
+/* ── Task 14: Globe ─────────────────────────────────── */
+.globe-container {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--color-border);
+}
+
+.globe-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+
+.globe-wrap canvas {
+  border-radius: 50%;
+  box-shadow: 0 0 28px rgba(53,255,122,0.12), 0 0 0 1px rgba(53,255,122,0.15);
+  display: block;
+}
+
+.globe-address {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--color-slate);
+  text-align: center;
+  text-transform: uppercase;
+  padding: 0 16px;
+}
+
+/* ── Task 15: Search Bar ────────────────────────────── */
+.search-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.search-input {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  padding: 5px 10px;
+  width: 200px;
+  outline: none;
+  transition: border-color var(--transition);
+}
+.search-input:focus { border-color: var(--color-green); }
+.search-input::placeholder { color: var(--color-slate); }
+
+.search-clear {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-slate);
+  cursor: pointer;
+  padding: 4px 8px;
+  transition: all var(--transition);
+}
+.search-clear:hover { border-color: var(--color-warning); color: var(--color-warning); }
+
+.search-highlight {
+  background: rgba(53,255,122,0.2);
+  color: var(--color-green);
+  border-radius: 1px;
+}
+
+/* ── Task 18: Error State ───────────────────────────── */
+.error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  margin-bottom: 16px;
+  border: 1px solid rgba(217,92,92,0.3);
+  border-radius: var(--radius-md);
+  background: rgba(217,92,92,0.05);
+  text-align: center;
+}
+
+.error-icon {
+  font-size: 28px;
+  color: var(--color-warning);
+  margin-bottom: 8px;
+}
+
+.error-title {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--color-warning);
+  margin-bottom: 8px;
+}
+
+.error-detail {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-slate);
+  margin-bottom: 6px;
+  letter-spacing: 0.04em;
+  word-break: break-all;
+}
+
+.error-retry {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-slate);
+  letter-spacing: 0.04em;
+}
+
+/* ── Welcome Popup ──────────────────────────────────── */
+.welcome-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+}
+
+.welcome-box {
+  background: var(--color-surface);
+  border: 1px solid var(--color-green);
+  border-radius: var(--radius-md);
+  max-width: 560px;
+  width: 90%;
+  padding: 40px;
+  box-shadow: 0 0 40px rgba(53,255,122,0.12);
+}
+
+.welcome-title {
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-green);
+  margin-bottom: 6px;
+}
+
+.welcome-subtitle {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-slate);
+  margin-bottom: 28px;
+}
+
+.welcome-body {
+  font-size: 14px;
+  line-height: 1.75;
+  color: var(--color-text);
+  margin-bottom: 28px;
+}
+.welcome-body p + p { margin-top: 14px; }
+
+.welcome-signature {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-green);
+  letter-spacing: 0.06em;
+  margin-bottom: 28px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 16px;
+}
+
+.welcome-footer { display: flex; justify-content: flex-end; }

@@ -15,10 +15,13 @@
 </head>
 <body>
 
+  <!-- ── Header ──────────────────────────────────────── -->
   <header class="site-header" id="site-header">
     <div class="header-left">
       <div class="logo">PROJECT ROLLUP</div>
       <div class="tagline">INTELLIGENCE DASHBOARD</div>
+      <!-- Task 5: Re-open welcome popup button -->
+      <button class="btn btn-ghost btn-xs" onclick="reopenWelcome()" title="About this dashboard" style="margin-top:4px;width:fit-content;">?</button>
     </div>
     <div class="header-right">
       <div class="mission-status">
@@ -30,15 +33,33 @@
         SOURCES: <span id="source-count">—</span> &nbsp;|&nbsp;
         HEALTHY: <span id="healthy-count">—</span> &nbsp;|&nbsp;
         <span class="text-warning">FAILED: <span id="failed-count">—</span></span>
+        &nbsp;|&nbsp; NEXT REFRESH: <span id="refresh-countdown" class="mono">—</span>
+      </div>
+      <!-- Task 15: Search input -->
+      <div class="search-bar">
+        <input
+          type="text"
+          id="headline-search"
+          class="search-input"
+          placeholder="SEARCH SIGNALS..."
+          autocomplete="off"
+          oninput="onSearchInput(this.value)"
+        >
+        <button class="search-clear" id="search-clear" onclick="clearSearch()" style="display:none;">&#x2715;</button>
       </div>
     </div>
   </header>
 
+  <!-- ── Dashboard Grid ──────────────────────────────── -->
   <div class="dashboard-grid">
 
     <main class="main-feed">
       <div class="panel">
-        <div class="panel-header">PRIORITY SIGNALS</div>
+        <div class="panel-header" style="display:flex;justify-content:space-between;align-items:center;">
+          PRIORITY SIGNALS
+          <!-- Task 17: Mark all read -->
+          <button class="btn btn-ghost btn-xs" onclick="markAllRead()" style="font-size:9px;padding:2px 8px;">MARK ALL READ</button>
+        </div>
         <div class="panel-body" id="feed"></div>
       </div>
     </main>
@@ -60,13 +81,54 @@
 
   </div>
 
+  <!-- ── Briefing Modal ──────────────────────────────── -->
   <div class="modal-overlay" id="briefing-modal" style="display:none" onclick="closeBriefing()">
     <div class="modal-content" id="briefing-content" onclick="event.stopPropagation()"></div>
   </div>
 
+  <!-- ── Welcome Popup ───────────────────────────────── -->
+  <div class="welcome-overlay" id="welcome-overlay">
+    <div class="welcome-box" onclick="event.stopPropagation()">
+      <div class="welcome-title">Project RollUp</div>
+      <div class="welcome-subtitle">Intelligence Dashboard &nbsp;&middot;&nbsp; Signal-First News</div>
+      <div class="welcome-body">
+        <p>Project RollUp is a real-time news intelligence dashboard. It continuously monitors <strong style="color:var(--color-green)">40+ global sources</strong> — wire services, investigative outlets, science journals, and more — and surfaces the stories that matter most.</p>
+        <p>Every headline is automatically <strong style="color:var(--color-green)">clustered, ranked, and scored</strong> based on freshness, how many independent outlets are covering it, and editorial velocity. The higher the rank, the stronger the signal.</p>
+        <p>Click <strong style="color:var(--color-green)">OPEN BRIEFING</strong> on any story to read a fact-based write-up, see which other outlets are corroborating the story, and view a live globe showing where the source outlet is based.</p>
+      </div>
+      <div class="welcome-signature">Enjoy the brief, Commander.</div>
+      <div class="welcome-footer">
+        <button class="btn btn-primary" onclick="closeWelcome()">ENTER DASHBOARD</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Scripts ─────────────────────────────────────── -->
   <script src="js/data.js"></script>
   <script src="js/utils.js"></script>
   <script src="js/filters.js"></script>
+  <script src="js/globe.js"></script>
   <script src="js/dashboard.js"></script>
+
+  <script>
+    // Task 5: Welcome popup — show only once per session
+    function closeWelcome() {
+      localStorage.setItem('rollup_welcomed', '1');
+      document.getElementById('welcome-overlay').style.display = 'none';
+    }
+
+    function reopenWelcome() {
+      document.getElementById('welcome-overlay').style.display = 'flex';
+    }
+
+    // Hide on load if already seen
+    if (localStorage.getItem('rollup_welcomed')) {
+      document.addEventListener('DOMContentLoaded', () => {
+        const overlay = document.getElementById('welcome-overlay');
+        if (overlay) overlay.style.display = 'none';
+      });
+    }
+  </script>
+
 </body>
 </html>

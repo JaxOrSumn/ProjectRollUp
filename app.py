@@ -31,6 +31,10 @@ MAX_BODY_CHARS = 14000
 FEED_TIMEOUT = 12  # Timeout per feed request in seconds
 REFRESH_INTERVAL = 300  # Background refresh every 5 minutes
 
+# ── Runtime health tracking (Task 7) ──────────────────────────────────────────
+_feed_health: dict[str, bool] = {}
+_last_refresh_time: datetime | None = None
+
 app = FastAPI(title='Project RollUp')
 app.add_middleware(
     CORSMiddleware,
@@ -100,6 +104,60 @@ FALLBACK_STORIES = [
     ('Local election results redraw city council balance in key metro areas', 'DW World'),
 ]
 
+# ── Source HQ locations (Task 14) ─────────────────────────────────────────────
+SOURCE_LOCATIONS: dict[str, tuple[str, float, float]] = {
+    'Reuters World':               ('Reuters HQ, 30 Hudson Yards, New York, USA',          40.7540,  -74.0020),
+    'Reuters Business':            ('Reuters HQ, 30 Hudson Yards, New York, USA',          40.7540,  -74.0020),
+    'BBC World':                   ('BBC Broadcasting House, Portland Place, London, UK',  51.5194,   -0.1435),
+    'Al Jazeera':                  ('Al Jazeera Media Network, Doha, Qatar',               25.2854,   51.5310),
+    'DW World':                    ('Deutsche Welle, Kurt-Schumacher-Str, Bonn, Germany',  50.7374,    7.0982),
+    'France 24 World':             ('France 24, 80 Rue Camille Desmoulins, Paris, France', 48.8566,    2.3522),
+    'NPR News':                    ('NPR HQ, 1111 North Capitol St NE, Washington DC, USA', 38.9072, -77.0369),
+    'The Guardian World':          ('The Guardian, 90 York Way, London, UK',               51.5145,   -0.1235),
+    'The Guardian Business':       ('The Guardian, 90 York Way, London, UK',               51.5145,   -0.1235),
+    'The Atlantic':                ('The Atlantic, 600 New Hampshire Ave NW, Washington DC, USA', 38.9072, -77.0369),
+    'ProPublica':                  ('ProPublica, 155 Ave of the Americas, New York, USA',  40.7128,  -74.0060),
+    'Center for Public Integrity': ('Center for Public Integrity, Washington DC, USA',     38.9072,  -77.0369),
+    'ScienceDaily':                ('ScienceDaily, Rockville MD, USA',                     39.0840,  -77.1528),
+    'Nature News':                 ('Nature Publishing Group, 4 Crinan St, London, UK',    51.5074,   -0.1278),
+    'Ars Technica':                ('Ars Technica / Condé Nast, New York, USA',            40.7128,  -74.0060),
+    'The Verge':                   ('Vox Media, 1201 Connecticut Ave NW, Washington DC, USA', 38.9072, -77.0369),
+    'Engadget':                    ('Yahoo Inc, 770 Broadway, New York, USA',              40.7290,  -73.9900),
+    'TechCrunch':                  ('TechCrunch, 410 Townsend St, San Francisco, USA',     37.7749, -122.4194),
+    'Democracy Now':               ('Democracy Now!, 207 W 25th St, New York, USA',        40.7462,  -73.9942),
+    'The Intercept':               ('The Intercept, New York, USA',                        40.7128,  -74.0060),
+    'Open Democracy':              ('openDemocracy, 2 Langley Lane, London, UK',           51.5074,   -0.1278),
+    'Reason':                      ('Reason Foundation, 5737 Mesmer Ave, Los Angeles, USA', 33.9995, -118.4270),
+    'UN News':                     ('United Nations HQ, 405 E 42nd St, New York, USA',     40.7489,  -73.9680),
+    'WHO News':                    ('WHO, 20 Avenue Appia, Geneva, Switzerland',            46.2044,    6.1432),
+    'Financial Times World':       ('Financial Times, 1 Southwark Bridge, London, UK',     51.5061,   -0.0967),
+    'Financial Times Companies':   ('Financial Times, 1 Southwark Bridge, London, UK',     51.5061,   -0.0967),
+    'The Economist':               ('The Economist, 25 St Jamess Street, London, UK',      51.5074,   -0.1278),
+    'Axios':                       ('Axios, 3100 Clarendon Blvd, Arlington VA, USA',       38.8816,  -77.0910),
+    'PBS NewsHour':                ('PBS NewsHour, 2700 S Quincy St, Arlington VA, USA',   38.8510,  -77.0910),
+    'Marketplace':                 ('American Public Media, 480 Cedar St, St Paul MN, USA', 44.9537, -93.0900),
+    'Columbia Journalism Review':  ('Columbia University, 116th St & Broadway, New York, USA', 40.8075, -73.9626),
+    'Common Dreams':               ('Common Dreams, Portland ME, USA',                     43.6591,  -70.2568),
+    'Truthout':                    ('Truthout, Sacramento CA, USA',                        38.5816, -121.4944),
+    'The New Republic':            ('The New Republic, 1 Union Square W, New York, USA',   40.7359,  -73.9911),
+    'The Nation':                  ('The Nation, 520 8th Ave, New York, USA',              40.7505,  -74.0006),
+    'Jacobin':                     ('Jacobin Magazine, New York, USA',                     40.7128,  -74.0060),
+    'Rest of World':               ('Rest of World, New York, USA',                        40.7128,  -74.0060),
+    'Inside Climate News':         ('Inside Climate News, New York, USA',                  40.7128,  -74.0060),
+    'Grist':                       ('Grist, 1201 Western Ave, Seattle WA, USA',            47.6062, -122.3321),
+    'Wired':                       ('Wired / Condé Nast, 1 World Trade Center, New York, USA', 40.7127, -74.0134),
+    'The Hill':                    ('The Hill, 1625 K St NW, Washington DC, USA',          38.9002,  -77.0385),
+}
+
+# ── Digest/roundup pattern (Task 10) ─────────────────────────────────────────
+_DIGEST_PATTERN = re.compile(
+    r'morning briefing|daily digest|weekly roundup|this week in|'
+    r'news briefing|evening briefing|what you need to know today|'
+    r"today's top stories|week in review|what we know so far|"
+    r'daily newsletter|your weekly|your daily|recap:',
+    re.I
+)
+
 
 # ── Database ─────────────────────────────────────────────────────────────────
 
@@ -130,6 +188,21 @@ def init_db():
             )"""
         )
         conn.execute('CREATE INDEX IF NOT EXISTS idx_stories_created ON stories(created_at)')
+
+        # Task 14: source_locations table
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS source_locations (
+                outlet_name TEXT PRIMARY KEY,
+                address TEXT,
+                lat REAL,
+                lon REAL
+            )"""
+        )
+        for name, (address, lat, lon) in SOURCE_LOCATIONS.items():
+            conn.execute(
+                'INSERT OR IGNORE INTO source_locations (outlet_name, address, lat, lon) VALUES (?,?,?,?)',
+                (name, address, lat, lon)
+            )
         conn.commit()
 
 
@@ -151,8 +224,6 @@ def parse_ts(entry):
             except Exception:
                 pass
     if entry.get('published_parsed'):
-        # Use calendar.timegm (treats struct_time as UTC, which feedparser guarantees)
-        # instead of time.mktime (which incorrectly assumes local timezone)
         return datetime.utcfromtimestamp(
             calendar.timegm(entry.published_parsed)
         ).replace(tzinfo=timezone.utc)
@@ -191,8 +262,8 @@ def extract_meta_summary(entry) -> str:
 
 
 def clean_text(text: str) -> str:
-    text = unescape(text or '')           # decode &#8220; &quot; etc before anything else
-    text = re.sub(r'<[^>]+>', ' ', text)  # strip remaining HTML tags
+    text = unescape(text or '')
+    text = re.sub(r'<[^>]+>', ' ', text)
     text = re.sub(r'\s+', ' ', text)
     return text.strip()
 
@@ -206,12 +277,10 @@ _NAV_JUNK = re.compile(
 
 
 def _is_junk_paragraph(text: str) -> bool:
-    """Return True if a paragraph looks like nav/UI noise rather than article content."""
     if len(text) < 80:
         return True
     if _NAV_JUNK.search(text):
         return True
-    # Reject if the paragraph is mostly short tokens (nav labels, button text)
     words = text.split()
     if len(words) < 8:
         return True
@@ -232,7 +301,6 @@ def extract_article_text(url: str) -> str:
     except Exception:
         return ''
 
-    # Prefer content inside <article> or <main> to avoid nav/sidebar noise
     scoped = re.search(r'<(?:article|main)[^>]*>(.*?)</(?:article|main)>', text, flags=re.I | re.S)
     search_area = scoped.group(1) if scoped else text
 
@@ -256,12 +324,11 @@ _BOILERPLATE = re.compile(
     re.I,
 )
 
-
 _ARTIFACTS = re.compile(
-    r'\[[\u2026\.]{1,3}\]'           # […] or [...]
-    r'|read the full story at [^\.\n]+'  # "Read the full story at X"
-    r'|read more( at [^\.\n]+)?'     # "Read more" / "Read more at X"
-    r'|\.\.\.',                      # bare ellipsis
+    r'\[[\u2026\.]{1,3}\]'
+    r'|read the full story at [^\.\n]+'
+    r'|read more( at [^\.\n]+)?'
+    r'|\.\.\.',
     re.I,
 )
 
@@ -284,17 +351,13 @@ def summarize_text(title: str, source: str, body: str, meta: str, source_count: 
             continue
         if _BOILERPLATE.search(chunk):
             continue
-        # Skip if essentially just the headline
         if normalize_title(chunk).lower() == title_norm:
             continue
-        # Skip comma-dense headline list dumps
         if chunk.count(',') > 4:
             continue
-        # Fuzzy near-duplicate check — catches slightly reworded repeats
         chunk_norm = normalize_title(chunk).lower()
         if any(fuzz.ratio(chunk_norm, normalize_title(s).lower()) > 72 for s in sentences):
             continue
-        # Cap runaway sentences
         words = chunk.split()
         if len(words) > 50:
             chunk = ' '.join(words[:50])
@@ -303,9 +366,8 @@ def summarize_text(title: str, source: str, body: str, meta: str, source_count: 
     if not sentences:
         sentences = [meta or body or title]
 
-    # ── Format: lead paragraph + Key Points ─────────────────────────────────
     lead = ' '.join(sentences[:2])
-    key_points = sentences[2:7]  # up to 5 bullets
+    key_points = sentences[2:7]
 
     attribution = f'Source: {source_phrase}  ·  {age_minutes} min ago  ·  Score {score:.3f}'
 
@@ -402,6 +464,7 @@ def human_reason(freshness: float, source_count: int, group_size: int, age_minut
 
 async def fetch_feed_async(name: str, url: str) -> list:
     """Fetch a single RSS feed asynchronously."""
+    entries = []
     try:
         async with httpx.AsyncClient(
             follow_redirects=True,
@@ -411,31 +474,25 @@ async def fetch_feed_async(name: str, url: str) -> list:
             res = await client.get(url)
             res.raise_for_status()
             text = res.text
-    except Exception:
-        return []
 
-    try:
         data = feedparser.parse(text)
-        entries = []
         for entry in data.entries[:20]:
             title = entry.get('title', '').strip()
             if not title:
                 continue
             article_url = entry.get('link', '')
 
-            # ── Skip live blogs ───────────────────────────────────────────────
-            # Live blogs aggregate many unrelated stories under one headline.
-            # They produce compound titles and bodies that are factually
-            # disconnected from each other — skip them entirely.
+            # Task 10: Skip digest/roundup entries
+            if _DIGEST_PATTERN.search(title):
+                continue
+
+            # Skip live blogs
             if '/live/' in article_url.lower():
                 continue
-            # Strip live/breaking/rolling prefixes: "Australia News Live: ..."
             title = re.sub(
                 r'^[\w\s]*(live|breaking|rolling|developing)\s*:\s*',
                 '', title, flags=re.I,
             ).strip() or title
-            # Skip compound headlines — two or more unrelated stories joined by "; "
-            # e.g. "ASX to Slide; $1M Reward in NSW Murder"
             if re.search(r';\s+[A-Z]', title):
                 continue
 
@@ -455,9 +512,12 @@ async def fetch_feed_async(name: str, url: str) -> list:
                 'meta_summary': meta_summary,
                 'content_text': content_text,
             })
-        return entries
     except Exception:
-        return []
+        pass
+
+    # Task 7: Record per-feed health
+    _feed_health[name] = len(entries) > 0
+    return entries
 
 
 async def load_entries_async(feeds: list[tuple[str, str]]) -> list:
@@ -497,7 +557,8 @@ def dedupe_and_rank(entries: list) -> list:
         freshness = max(0, 60 - min(age_minutes, 240)) / 60
         diversity = min(1.0, source_count / 4)
         cluster_bonus = min(1.0, len(group) / 3)
-        score = round((freshness * 0.5 + diversity * 0.35 + cluster_bonus * 0.15), 3)
+        # Task 1: Rebalanced weights — freshness=0.4, diversity=0.4, velocity=0.2
+        score = round((freshness * 0.4 + diversity * 0.4 + cluster_bonus * 0.2), 3)
         bucket = 'fresh' if age_minutes <= 60 else 'older'
         reason = human_reason(freshness, source_count, len(group), age_minutes, bucket)
         summary = summarize_text(
@@ -507,15 +568,19 @@ def dedupe_and_rank(entries: list) -> list:
             source_count, age_minutes, score,
         )
         tags = classify_tags(title, summary)
+        # Task 13: Corroborating sources = all sources except the primary
+        primary_source = group[0]['source']
+        corroborating = [s for s in source_names if s != primary_source]
         items.append({
             'headline': title,
-            'source': group[0]['source'],
+            'source': primary_source,
             'age': f'{age_minutes}m',
             'age_minutes': age_minutes,
             'freshness_bucket': bucket,
             'source_count': source_count,
             'score': score,
             'sources': source_names,
+            'corroborating_sources': corroborating,
             'reason': reason,
             'summary': summary,
             'tags': tags,
@@ -548,6 +613,7 @@ def fallback_items(needed: int, bucket='fallback') -> list:
             'source_count': 1,
             'score': score,
             'sources': [source],
+            'corroborating_sources': [],
             'tags': tags,
             'reason': 'fallback item — live feeds returned insufficient results',
             'summary': summary,
@@ -560,7 +626,6 @@ def fallback_items(needed: int, bucket='fallback') -> list:
 
 async def guaranteed_stories_async() -> list:
     """Fetch all feeds concurrently, rank, and pad with fallback if needed."""
-    # Fetch primary and backup feeds concurrently
     primary_entries, backup_entries = await asyncio.gather(
         load_entries_async(PRIMARY_FEEDS),
         load_entries_async(BACKUP_FEEDS),
@@ -568,12 +633,10 @@ async def guaranteed_stories_async() -> list:
 
     items = dedupe_and_rank(primary_entries)
 
-    # Only merge backup feeds if primary is sparse
     if len(items) < MAX_ITEMS:
         combined = dedupe_and_rank(primary_entries + backup_entries)
         items = combined
 
-    # Pad with fallback only if still not enough real stories
     if len(items) < MAX_ITEMS:
         items = items + fallback_items(MAX_ITEMS - len(items))
 
@@ -583,6 +646,7 @@ async def guaranteed_stories_async() -> list:
 
 async def refresh_cache_async():
     """Fetch feeds and write results to the DB cache."""
+    global _last_refresh_time
     items = await guaranteed_stories_async()
     with db() as conn:
         conn.execute('DELETE FROM stories')
@@ -602,6 +666,7 @@ async def refresh_cache_async():
                 ),
             )
         conn.commit()
+    _last_refresh_time = datetime.now(timezone.utc)
     return items
 
 
@@ -614,21 +679,37 @@ def cached_items() -> list:
                FROM stories ORDER BY score DESC, age_minutes ASC LIMIT ?""",
             (MAX_ITEMS,),
         ).fetchall()
+
+    now = datetime.now(timezone.utc)
     items = []
     for r in rows:
         headline = r['title']
         summary = r['summary'] or ''
+
+        # Task 4: Compute age_minutes dynamically from published timestamp
+        try:
+            pub = dtparser.parse(r['published']).astimezone(timezone.utc) if r['published'] else now
+        except Exception:
+            pub = now
+        age_minutes = max(0, int((now - pub).total_seconds() / 60))
+
+        # Task 13: Derive corroborating sources from stored sources_json
+        all_sources = json.loads(r['sources_json'] or '[]')
+        primary_source = r['source']
+        corroborating = [s for s in all_sources if s != primary_source]
+
         items.append({
             'headline': headline,
-            'source': r['source'],
+            'source': primary_source,
             'url': r['url'] or '',
             'published': r['published'] or '',
-            'age': f"{r['age_minutes']}m",
-            'age_minutes': r['age_minutes'],
+            'age': f'{age_minutes}m',
+            'age_minutes': age_minutes,
             'freshness_bucket': r['freshness_bucket'],
             'source_count': r['source_count'],
             'score': r['score'],
-            'sources': json.loads(r['sources_json'] or '[]'),
+            'sources': all_sources,
+            'corroborating_sources': corroborating,
             'reason': r['reason'],
             'summary': summary,
             'tags': classify_tags(headline, summary),
@@ -672,7 +753,6 @@ async def stories():
     """Serve from DB cache — fast, no feed fetching."""
     items = cached_items()
     if not items:
-        # Cache is empty (first boot race) — run a fresh fetch once
         try:
             items = await refresh_cache_async()
         except Exception:
@@ -697,6 +777,8 @@ async def stories():
             'summary': item.get('summary', ''),
             'rankReason': item.get('reason', 'Ranked by score'),
             'rank_reason': item.get('reason', 'Ranked by score'),
+            'sources': item.get('sources', [item['source']]),
+            'corroborating_sources': item.get('corroborating_sources', []),
             'featured': idx == 1,
         })
 
@@ -732,13 +814,14 @@ async def story(id: str = None, headline: str = None):
             'score': 0.0,
             'source_count': 1,
             'sources': ['Project RollUp'],
+            'corroborating_sources': [],
             'reason': 'Headline not found in current cache.',
             'summary': summarize_text(search_term or 'Unknown', 'Project RollUp', search_term or 'Unknown', '', 1, 0, 0.0),
         }
 
     # Enrich summary with full article text on demand.
-    # Skip if summary is already long (previously enriched and cached).
     url = target.get('url', '')
+    extraction_note = ''
     if url and word_count(target.get('summary', '')) < 200:
         extracted = await asyncio.get_event_loop().run_in_executor(None, extract_article_text, url)
         if extracted:
@@ -746,12 +829,11 @@ async def story(id: str = None, headline: str = None):
                 target['headline'],
                 target['source'],
                 extracted,
-                '',  # Don't feed old summary back as meta — causes duplicate intro and misplaced outro
+                '',
                 target.get('source_count', 1),
                 target.get('age_minutes', 0),
                 target.get('score', 0.0),
             )
-            # Cache enriched summary back to DB.
             try:
                 with db() as conn:
                     conn.execute(
@@ -761,6 +843,30 @@ async def story(id: str = None, headline: str = None):
                     conn.commit()
             except Exception:
                 pass
+        else:
+            # Task 9: Flag extraction failure
+            if url:
+                extraction_note = 'Feed summary only — full article unavailable.'
+
+    target['extraction_note'] = extraction_note
+
+    # Task 14: Look up source HQ location
+    source_location = None
+    try:
+        with db() as conn:
+            row = conn.execute(
+                'SELECT address, lat, lon FROM source_locations WHERE outlet_name = ?',
+                (target.get('source', ''),)
+            ).fetchone()
+            if row:
+                source_location = {
+                    'address': row['address'],
+                    'lat': row['lat'],
+                    'lon': row['lon'],
+                }
+    except Exception:
+        pass
+    target['source_location'] = source_location
 
     # Ensure all field aliases the frontend expects are present
     target.setdefault('rankReason', target.get('reason', ''))
@@ -768,23 +874,42 @@ async def story(id: str = None, headline: str = None):
     target.setdefault('sourceCount', target.get('source_count', 1))
     target.setdefault('firstSeenAt', target.get('published', ''))
     target.setdefault('confidence', min(target.get('score', 0.0), 1.0))
+    target.setdefault('corroborating_sources', [])
 
     return JSONResponse(target)
 
 
 @app.get('/api/health')
 async def health():
+    # Task 7: Return real per-feed health data
+    healthy = sum(1 for v in _feed_health.values() if v)
+    failed = sum(1 for v in _feed_health.values() if not v)
+    total_polled = len(_feed_health) if _feed_health else (len(PRIMARY_FEEDS) + len(BACKUP_FEEDS))
+    last_update = (
+        _last_refresh_time.isoformat()
+        if _last_refresh_time
+        else datetime.now(timezone.utc).isoformat()
+    )
+    overall = (
+        'green' if failed == 0
+        else ('amber' if failed < total_polled / 2 else 'red')
+    )
     return JSONResponse({
-        'status': 'green',
-        'last_update': datetime.now(timezone.utc).isoformat(),
-        'sources_polled': len(PRIMARY_FEEDS) + len(BACKUP_FEEDS),
-        'healthy_sources': len(PRIMARY_FEEDS),
-        'failed_sources': 0,
-        'ingestion': 'green',
+        'status': overall,
+        'last_update': last_update,
+        'sources_polled': total_polled,
+        'healthy_sources': healthy if _feed_health else len(PRIMARY_FEEDS),
+        'failed_sources': failed,
+        'ingestion': 'green' if failed == 0 else 'amber',
         'clustering': 'green',
         'ranking': 'green',
         'sources': [
-            {'id': f'source_{i}', 'name': name, 'status': 'healthy', 'credibility': 0.9}
+            {
+                'id': f'source_{i}',
+                'name': name,
+                'status': 'healthy' if _feed_health.get(name, True) else 'failed',
+                'credibility': 0.9,
+            }
             for i, (name, _) in enumerate(PRIMARY_FEEDS[:10])
         ],
     })

@@ -1,23 +1,33 @@
 // ── Filter State and Logic ──────────────────────────────
 
 let activeFilters = {
-  tags: [],
-  minSources: 0,
+  tags:          [],
+  minSources:    0,
   minConfidence: 0,
 };
 
 function filterStories(stories) {
   return stories.filter(s => {
+    // Task 6: Respect muted sources
+    if (typeof mutedSources !== 'undefined' && mutedSources.includes(s.source)) return false;
+
+    // Tag filter
     if (activeFilters.tags.length > 0 &&
         !activeFilters.tags.some(t => (s.tags || []).includes(t))) {
       return false;
     }
-    if (s.sourceCount < activeFilters.minSources) return false;
-    if (s.confidence < activeFilters.minConfidence) return false;
+
+    // Handle both sourceCount and source_count field names
+    const sc = s.sourceCount || s.source_count || 1;
+    if (sc < activeFilters.minSources) return false;
+
+    if ((s.confidence || 0) < activeFilters.minConfidence) return false;
+
     return true;
   });
 }
 
+// Task 12: Fix — re-render Coverage Theater so pill active state updates reliably
 function toggleTagFilter(tag) {
   const idx = activeFilters.tags.indexOf(tag);
   if (idx > -1) {
@@ -26,13 +36,13 @@ function toggleTagFilter(tag) {
     activeFilters.tags.push(tag);
   }
   renderFeed();
-  updateTagPillsUI();
+  renderCoverageTheater(); // Re-render pills so active class is applied correctly
 }
 
 function clearFilters() {
   activeFilters = { tags: [], minSources: 0, minConfidence: 0 };
   renderFeed();
-  updateTagPillsUI();
+  renderCoverageTheater();
 }
 
 function updateTagPillsUI() {
