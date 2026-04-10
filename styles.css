@@ -17,11 +17,10 @@ button,input,select{font:inherit} button{cursor:pointer}
 @media (max-width: 767px){.globeWidget{display:none !important}.toolbar{grid-template-columns:1fr 1fr}.storyList{grid-template-columns:1fr}.siteTitle{font-size:24px}}
 
 /* ── Tab navigation ─────────────────────────────────────────────────────────── */
-.tabNav{display:flex;gap:0;border:1px solid var(--line);background:var(--panel);overflow:hidden}
-.tabBtn{flex:1;padding:10px 18px;background:transparent;border:none;border-right:1px solid var(--line);color:var(--muted);font:inherit;font-size:13px;letter-spacing:.1em;cursor:pointer;transition:background .12s,color .12s}
-.tabBtn:last-child{border-right:none}
-.tabBtn:hover{background:rgba(0,255,102,.07);color:var(--fg)}
-.tabBtn.active{background:rgba(0,255,102,.12);color:var(--fg);font-weight:600}
+.tabNav{display:flex;gap:8px;background:transparent;border:none;padding:0}
+.tabBtn{padding:10px 18px;background:rgba(0,0,0,.6);border:1px solid rgba(0,255,102,.28);color:var(--muted);font:inherit;font-size:13px;letter-spacing:.06em;cursor:pointer;border-radius:8px;min-height:40px;transition:background .12s,color .12s,border-color .12s}
+.tabBtn:hover{background:rgba(0,255,102,.1);color:var(--fg)}
+.tabBtn.active{background:rgba(0,255,102,.12);color:var(--fg);border-color:rgba(0,255,102,.55)}
 
 /* ── Trends panel ───────────────────────────────────────────────────────────── */
 .trendsToolbar{grid-template-columns:170px 160px auto auto 1fr}

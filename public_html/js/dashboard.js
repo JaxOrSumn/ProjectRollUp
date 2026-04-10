@@ -749,6 +749,161 @@ async function refresh() {
   flashStatusGreen();
 }
 
+// ── Trends ───────────────────────────────────────────────
+
+let trendsData   = [];
+let trendsLoaded = false;
+let trendCatFilter = 'all';
+let trendVelFilter = 'all';
+
+const VEL_LABELS = {
+  ACCELERATING: '↑ RISING',
+  PEAKING:      '→ PEAKING',
+  STEADY:       '· STEADY',
+  FADING:       '↓ FADING',
+};
+
+const PLATFORM_SHORT = { 'HackerNews': 'HN', 'Reddit': 'Reddit', 'Google Trends': 'Google' };
+const PLATFORM_CLASS  = { 'HackerNews': 'pb-hn', 'Reddit': 'pb-reddit', 'Google Trends': 'pb-google' };
+
+function trendAgo(minutes) {
+  if (minutes <= 0)    return 'just now';
+  if (minutes < 60)   return `${minutes}m ago`;
+  if (minutes < 1440) return `${Math.floor(minutes / 60)}h ago`;
+  return `${Math.floor(minutes / 1440)}d ago`;
+}
+
+function filteredTrends() {
+  return trendsData.filter(t => {
+    if (trendCatFilter !== 'all' && !(t.categories || []).includes(trendCatFilter)) return false;
+    if (trendVelFilter !== 'all' && t.velocity !== trendVelFilter) return false;
+    return true;
+  });
+}
+
+function countRelated(topic) {
+  const words = topic.toLowerCase().split(/\s+/).slice(0, 2).join(' ');
+  return stories.filter(s =>
+    ((s.headline || s.title || '') + ' ' + (s.summary || '')).toLowerCase().includes(words)
+  ).length;
+}
+
+function renderTrends() {
+  const grid    = document.getElementById('trends-grid');
+  const countEl = document.getElementById('trends-count');
+  if (!grid) return;
+  const list = filteredTrends();
+  if (countEl) countEl.textContent = `${list.length} trend${list.length !== 1 ? 's' : ''}`;
+
+  if (!list.length) {
+    grid.innerHTML = '<p style="color:var(--color-slate);text-align:center;padding:24px 16px;">No trends match the current filters.</p>';
+    return;
+  }
+
+  grid.innerHTML = list.map(t => {
+    const cats = (t.categories || []).map(c =>
+      `<span class="tag-chip ${TAG_COLORS[c] || 'tag-general'}">${escapeHtml(c)}</span>`
+    ).join('');
+    const platforms = (t.platforms || []).map(p =>
+      `<span class="platform-badge ${PLATFORM_CLASS[p] || ''}">${escapeHtml(PLATFORM_SHORT[p] || p)}</span>`
+    ).join('');
+    const related    = countRelated(t.topic);
+    const relatedBtn = related > 0
+      ? `<button class="btn btn-ghost btn-xs" onclick="trendsToFeed(${JSON.stringify(t.topic)})" style="font-size:8px;">${related} IN FEED →</button>`
+      : '';
+    const sub = t.subreddit
+      ? `<span class="corr-source">${escapeHtml(t.subreddit)}</span>`
+      : '';
+    return `
+      <div class="trend-card">
+        <div class="trend-card-top">
+          <span class="vel-badge vel-${escapeHtml(t.velocity)}">${escapeHtml(VEL_LABELS[t.velocity] || t.velocity)}</span>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;">${cats}</div>
+        </div>
+        <div class="trend-topic">${escapeHtml(t.topic)}</div>
+        <div class="trend-platforms">
+          <span class="platform-label">Spotted on:</span>
+          ${platforms} ${sub}
+        </div>
+        <div class="trend-meta">
+          <span>${escapeHtml(trendAgo(t.age_minutes))}</span>
+          ${t.signals ? `<span>${t.signals.toLocaleString()} signals</span>` : ''}
+          <span>${t.cross_platform_count} platform${t.cross_platform_count !== 1 ? 's' : ''}</span>
+        </div>
+        <div class="trend-footer">
+          <a class="trend-link" href="${escapeHtml(t.url)}" target="_blank" rel="noopener noreferrer">
+            VIEW ON ${escapeHtml((t.primary_platform || '').toUpperCase())} →
+          </a>
+          ${relatedBtn}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function filterTrends() {
+  const catEl = document.getElementById('trend-cat-filter');
+  const velEl = document.getElementById('trend-vel-filter');
+  if (catEl) trendCatFilter = catEl.value;
+  if (velEl) trendVelFilter = velEl.value;
+  renderTrends();
+}
+
+async function loadTrends(force = false) {
+  if (trendsLoaded && !force) { renderTrends(); return; }
+  const grid = document.getElementById('trends-grid');
+  if (grid) grid.innerHTML = '<p style="color:var(--color-slate);text-align:center;padding:24px 16px;">Fetching trends&hellip;</p>';
+  try {
+    const res = await fetch(`${API_BASE}/api/trends`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    trendsData   = data.trends || [];
+    trendsLoaded = true;
+    const asOfEl  = document.getElementById('trends-as-of');
+    const srcEl   = document.getElementById('trends-sources');
+    if (asOfEl && data.as_of)
+      asOfEl.textContent = `Updated ${new Date(data.as_of).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+    if (srcEl && data.sources)
+      srcEl.textContent = `| ${data.sources.join(', ')}`;
+    renderTrends();
+  } catch (err) {
+    if (grid) grid.innerHTML = `<p style="color:var(--color-warning);text-align:center;padding:24px 16px;">Could not load trends: ${escapeHtml(err.message)}</p>`;
+  }
+}
+
+function trendsToFeed(topic) {
+  switchTab('news');
+  searchQuery = topic.split(' ').slice(0, 3).join(' ').toLowerCase();
+  const inp = document.getElementById('headline-search');
+  if (inp) {
+    inp.value = searchQuery;
+    const clr = document.getElementById('search-clear');
+    if (clr) clr.style.display = 'inline-block';
+  }
+  renderFeed();
+}
+
+function switchTab(tab) {
+  const newsView   = document.getElementById('news-view');
+  const trendsView = document.getElementById('trends-view');
+  const newsFilters= document.getElementById('news-filters');
+  const tabNews    = document.getElementById('tab-news');
+  const tabTrends  = document.getElementById('tab-trends');
+  if (tab === 'trends') {
+    if (newsView)    newsView.hidden    = true;
+    if (newsFilters) newsFilters.hidden = true;
+    if (trendsView)  trendsView.hidden  = false;
+    if (tabNews)     tabNews.classList.remove('active');
+    if (tabTrends)   tabTrends.classList.add('active');
+    loadTrends();
+  } else {
+    if (trendsView)  trendsView.hidden  = true;
+    if (newsView)    newsView.hidden    = false;
+    if (newsFilters) newsFilters.hidden = false;
+    if (tabTrends)   tabTrends.classList.remove('active');
+    if (tabNews)     tabNews.classList.add('active');
+  }
+}
+
 // ── Initialize ──────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
