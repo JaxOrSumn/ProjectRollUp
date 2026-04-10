@@ -356,6 +356,89 @@ function renderSourceHealth() {
   `;
 }
 
+// ── Filter Bar Render ───────────────────────────────────
+
+function renderFilterBar() {
+  // Topic pills — populated from live stories
+  const topicContainer = document.getElementById('filter-topic-pills');
+  if (topicContainer) {
+    const allTags = new Set();
+    stories.forEach(s => (s.tags || []).forEach(t => allTags.add(t)));
+    topicContainer.innerHTML = Array.from(allTags).map(tag => {
+      const isActive = activeFilters.tags.includes(tag);
+      return `<span class="filter-pill ${isActive ? 'active' : ''}" onclick="toggleTagFilter('${escapeHtml(tag)}')">${escapeHtml(tag)}</span>`;
+    }).join('');
+  }
+
+  // Time pills — update active state
+  [0, 60, 360, 1440].forEach(v => {
+    const el = document.getElementById(`fp-time-${v}`);
+    if (el) el.classList.toggle('active', activeFilters.timeRange === v);
+  });
+
+  // Source pills — update active state
+  [0, 2, 3, 4].forEach(v => {
+    const el = document.getElementById(`fp-src-${v}`);
+    if (el) el.classList.toggle('active', activeFilters.minSources === v);
+  });
+
+  // Active chips row
+  const chipsRow = document.getElementById('active-chips-row');
+  if (!chipsRow) return;
+
+  const chips = [];
+  activeFilters.tags.forEach(tag => {
+    chips.push(`<span class="active-chip">${escapeHtml(tag)}<span class="chip-x" onclick="toggleTagFilter('${escapeHtml(tag)}')">&#x2715;</span></span>`);
+  });
+  if (activeFilters.timeRange > 0) {
+    const labels = { 60: '< 1H', 360: '< 6H', 1440: '< 24H' };
+    chips.push(`<span class="active-chip">TIME: ${labels[activeFilters.timeRange]}<span class="chip-x" onclick="setTimeFilter(0)">&#x2715;</span></span>`);
+  }
+  if (activeFilters.minSources > 0) {
+    chips.push(`<span class="active-chip">SOURCES: ${activeFilters.minSources}+<span class="chip-x" onclick="setSourceFilter(0)">&#x2715;</span></span>`);
+  }
+
+  const hasActive = chips.length > 0;
+  chipsRow.style.display = hasActive ? 'flex' : 'none';
+
+  if (hasActive) {
+    const filtered = filterStories(stories);
+    const total    = stories.filter(s => !mutedSources.includes(s.source)).length;
+    chipsRow.innerHTML = `
+      <span class="filter-active-label">ACTIVE:</span>
+      ${chips.join('')}
+      <span class="filter-count">${filtered.length} of ${total} signals</span>
+      <button class="filter-clear-all" onclick="clearFilters()">CLEAR ALL</button>
+    `;
+  }
+}
+
+// ── Color Theme ─────────────────────────────────────────
+
+const COLOR_THEMES = {
+  green:  { accent: '#35ff7a', deep: '#1f8f4a' },
+  white:  { accent: '#e2e8e2', deep: '#8a9490' },
+  purple: { accent: '#c084fc', deep: '#7c3aed' },
+  indigo: { accent: '#818cf8', deep: '#4338ca' },
+  blue:   { accent: '#38bdf8', deep: '#0369a1' },
+  amber:  { accent: '#fbbf24', deep: '#92400e' },
+};
+
+function applyTheme(name) {
+  const t = COLOR_THEMES[name] || COLOR_THEMES.green;
+  document.documentElement.style.setProperty('--color-green', t.accent);
+  document.documentElement.style.setProperty('--color-deep-green', t.deep);
+  localStorage.setItem('rollup_theme', name);
+  document.querySelectorAll('.color-swatch').forEach(el => {
+    el.classList.toggle('selected', el.dataset.theme === name);
+  });
+}
+
+function loadSavedTheme() {
+  const saved = localStorage.getItem('rollup_theme') || 'green';
+  applyTheme(saved);
+}
+
 function renderCoverageTheater() {
   const container = document.getElementById('coverage-theater');
   const allTags   = new Set();
@@ -572,6 +655,7 @@ async function refresh() {
   await fetchStories();
   renderHeader();
   renderFeed();
+  renderFilterBar();
   renderSystemStatus();
   renderSourceHealth();
   renderCoverageTheater();
@@ -583,6 +667,18 @@ async function refresh() {
 // ── Initialize ──────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
+  // Apply saved color theme before first render
+  loadSavedTheme();
+
+  // Set filter bar sticky offset to sit just below the header
+  const setFilterTop = () => {
+    const hdr = document.getElementById('site-header');
+    const bar = document.getElementById('filter-bar');
+    if (hdr && bar) bar.style.top = hdr.offsetHeight + 'px';
+  };
+  setFilterTop();
+  window.addEventListener('resize', setFilterTop);
+
   await refresh();
   startRefreshCycle();
 

@@ -50,6 +50,39 @@
     </div>
   </header>
 
+  <!-- ── Filter Bar ────────────────────────────────────── -->
+  <div class="filter-bar" id="filter-bar">
+    <div class="filter-row">
+      <span class="filter-label">TOPIC</span>
+      <div class="pill-group" id="filter-topic-pills">
+        <!-- populated by renderFilterBar() after stories load -->
+      </div>
+
+      <div class="filter-sep"></div>
+
+      <span class="filter-label">TIME</span>
+      <div class="pill-group">
+        <span class="filter-pill active" id="fp-time-0"    onclick="setTimeFilter(0)">ALL</span>
+        <span class="filter-pill"        id="fp-time-60"   onclick="setTimeFilter(60)">&lt; 1H</span>
+        <span class="filter-pill"        id="fp-time-360"  onclick="setTimeFilter(360)">&lt; 6H</span>
+        <span class="filter-pill"        id="fp-time-1440" onclick="setTimeFilter(1440)">&lt; 24H</span>
+      </div>
+
+      <div class="filter-sep"></div>
+
+      <span class="filter-label">SOURCES</span>
+      <div class="pill-group">
+        <span class="filter-pill active" id="fp-src-0" onclick="setSourceFilter(0)">ANY</span>
+        <span class="filter-pill"        id="fp-src-2" onclick="setSourceFilter(2)">2+</span>
+        <span class="filter-pill"        id="fp-src-3" onclick="setSourceFilter(3)">3+</span>
+        <span class="filter-pill"        id="fp-src-4" onclick="setSourceFilter(4)">4+</span>
+      </div>
+    </div>
+
+    <!-- Active filter chips — shown only when ≥1 filter is active -->
+    <div class="active-chips-row" id="active-chips-row" style="display:none;"></div>
+  </div>
+
   <!-- ── Dashboard Grid ──────────────────────────────── -->
   <div class="dashboard-grid">
 
@@ -96,6 +129,19 @@
         <p>Every headline is automatically <strong style="color:var(--color-green)">clustered and ranked</strong> based on freshness, how many independent outlets are covering it, and editorial velocity. The higher the rank, the stronger the signal.</p>
         <p>Click <strong style="color:var(--color-green)">OPEN BRIEFING</strong> on any story to read a fact-based write-up, see which other outlets are corroborating the story, and view a live globe showing where the source outlet is based.</p>
       </div>
+      <!-- Color picker -->
+      <div class="color-picker-section">
+        <div class="cp-label">Signal Color</div>
+        <div class="color-swatches">
+          <div class="color-swatch" data-theme="green"  style="background:#35ff7a;" onclick="applyTheme('green')"  title="Green"></div>
+          <div class="color-swatch" data-theme="white"  style="background:#e2e8e2;" onclick="applyTheme('white')"  title="White"></div>
+          <div class="color-swatch" data-theme="purple" style="background:#c084fc;" onclick="applyTheme('purple')" title="Purple"></div>
+          <div class="color-swatch" data-theme="indigo" style="background:#818cf8;" onclick="applyTheme('indigo')" title="Indigo"></div>
+          <div class="color-swatch" data-theme="blue"   style="background:#38bdf8;" onclick="applyTheme('blue')"   title="Blue"></div>
+          <div class="color-swatch" data-theme="amber"  style="background:#fbbf24;" onclick="applyTheme('amber')"  title="Amber"></div>
+        </div>
+      </div>
+
       <div class="welcome-signature">Enjoy the brief, Commander.</div>
       <div class="welcome-footer">
         <button class="btn btn-primary" onclick="closeWelcome()">ENTER DASHBOARD</button>

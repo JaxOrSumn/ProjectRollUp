@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mockup — Filter Bar + Color Picker</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --accent:       #35ff7a;
+  --accent-deep:  #1f8f4a;
+  --base:         #0b0f0b;
+  --surface:      #111611;
+  --surface-2:    #171e17;
+  --border:       #1f2b1f;
+  --slate:        #8a9490;
+  --text:         #d4dbd4;
+  --warning:      #d95c5c;
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Inter', system-ui, sans-serif;
+}
+body { background: var(--base); color: var(--text); font-family: var(--sans); }
+
+/* ─── HEADER ─────────────────────────────── */
+.site-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 20px; background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono); font-size: 11px; letter-spacing: .08em;
+}
+.logo { color: var(--accent); font-size: 14px; font-weight: 700; }
+.tagline { color: var(--slate); font-size: 9px; }
+.live-dot { width:7px;height:7px;border-radius:50%;background:var(--accent);display:inline-block;margin-right:5px;animation:pulse 1.6s infinite; }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:.4} }
+.header-right { display:flex;align-items:center;gap:16px; }
+.search-input {
+  background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--text); font-family: var(--mono); font-size: 10px;
+  padding: 5px 10px; border-radius: 3px; width: 180px; outline:none;
+}
+.search-input::placeholder { color: var(--slate); }
+
+/* ─── FILTER BAR ─────────────────────────── */
+.filter-bar {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 10px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 50;
+}
+.filter-row {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+}
+.filter-label {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .1em;
+  color: var(--slate); min-width: 56px; flex-shrink: 0;
+}
+
+/* Pill groups */
+.pill-group { display: flex; gap: 4px; flex-wrap: wrap; }
+.pill {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .07em;
+  padding: 4px 10px; border-radius: 2px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--slate); transition: all 120ms ease; white-space: nowrap;
+  user-select: none;
+}
+.pill:hover { border-color: var(--accent); color: var(--text); }
+.pill.active {
+  background: var(--accent-deep); border-color: var(--accent);
+  color: var(--accent); font-weight: 600;
+}
+
+/* Active chips row */
+.active-chips-row {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 6px 0 2px;
+  border-top: 1px solid var(--border);
+}
+.active-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--mono); font-size: 9px;
+  padding: 3px 8px; border-radius: 2px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 1px solid var(--accent-deep); color: var(--accent);
+}
+.active-chip .chip-x {
+  cursor: pointer; opacity: .7; font-size: 10px; line-height: 1;
+}
+.active-chip .chip-x:hover { opacity: 1; }
+.clear-all {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .08em;
+  color: var(--warning); cursor: pointer; margin-left: auto;
+  border: 1px solid var(--warning); padding: 3px 8px; border-radius: 2px;
+  background: transparent;
+}
+.clear-all:hover { background: color-mix(in srgb, var(--warning) 10%, transparent); }
+.filter-count {
+  font-family: var(--mono); font-size: 9px; color: var(--slate);
+}
+
+/* Divider between filter groups */
+.filter-sep { width:1px;height:16px;background:var(--border);flex-shrink:0;margin:0 4px; }
+
+/* ─── SAMPLE CARDS ───────────────────────── */
+.grid { display: grid; grid-template-columns: 1fr 280px; gap: 16px; padding: 16px 20px; }
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 4px; padding: 14px 16px; margin-bottom: 8px;
+}
+.card-title { font-family: var(--mono); font-size: 12px; color: var(--text); margin-bottom: 6px; }
+.card-meta { font-size: 11px; color: var(--slate); display:flex;gap:10px; }
+.tag { font-family:var(--mono);font-size:9px;padding:2px 6px;border-radius:2px;border:1px solid var(--border);color:var(--slate); }
+.tag.geo { border-color:#4a6fa5;color:#7baad4; }
+.tag.tech { border-color:#5a7a3a;color:#8fba60; }
+.tag.eco { border-color:#8a6a1a;color:#c9a84c; }
+
+/* ─── COLOR PICKER (welcome modal) ──────── */
+.section-label {
+  font-family: var(--mono); font-size: 9px; letter-spacing: .1em;
+  color: var(--slate); text-transform: uppercase; margin-bottom: 10px;
+}
+.color-picker-row {
+  display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+}
+.color-swatch {
+  width: 34px; height: 34px; border-radius: 4px; cursor: pointer;
+  border: 2px solid transparent; transition: all 140ms ease;
+  position: relative; flex-shrink: 0;
+}
+.color-swatch:hover { transform: scale(1.1); }
+.color-swatch.selected { border-color: white; box-shadow: 0 0 0 3px rgba(255,255,255,.15); }
+.color-swatch .swatch-label {
+  position: absolute; bottom: -18px; left: 50%; transform: translateX(-50%);
+  font-family: var(--mono); font-size: 8px; color: var(--slate);
+  white-space: nowrap;
+}
+.color-picker-wrap {
+  background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 20px; max-width: 420px; margin: 40px auto 0;
+}
+.cp-title { font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--text);margin-bottom:6px; }
+.cp-sub { font-size:11px;color:var(--slate);margin-bottom:20px; }
+
+.demo-block {
+  margin-top: 24px; padding: 12px 14px;
+  background: var(--surface); border: 1px solid var(--border); border-radius:4px;
+}
+.demo-accent { color: var(--accent); font-family:var(--mono);font-size:11px; }
+.demo-bar {
+  height: 3px; background: var(--accent-deep); border-radius:2px; margin-top:8px;
+  position:relative; overflow:visible;
+}
+.demo-bar::after {
+  content:''; position:absolute; left:0; top:0; height:100%;
+  width: 72%; background: var(--accent); border-radius:2px;
+  transition: background .2s;
+}
+
+/* ─── PAGE SECTIONS ──────────────────────── */
+.section-title {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
+  color: var(--accent); padding: 12px 20px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.note {
+  font-size:11px;color:var(--slate);padding:6px 20px;
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
+  border-left: 2px solid var(--accent-deep); margin: 0 20px 12px;
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+     SECTION 1 — FILTER BAR MOCKUP
+════════════════════════════════════════════════ -->
+<div class="section-title">▸ MOCKUP A — FILTER BAR (shown with 2 active filters)</div>
+<p class="note">Sticky below the header. Groups: TOPIC · TIME · SOURCES. Active filters surface as dismissible chips. CLEAR ALL only appears when ≥1 filter is active.</p>
+
+<!-- Header (abridged) -->
+<header class="site-header">
+  <div>
+    <div class="logo">PROJECT ROLLUP</div>
+    <div class="tagline">INTELLIGENCE DASHBOARD</div>
+  </div>
+  <div class="header-right">
+    <span><span class="live-dot"></span><span style="font-size:10px;color:var(--slate);">MISSION STATUS: GREEN</span></span>
+    <input class="search-input" placeholder="SEARCH SIGNALS..." readonly>
+  </div>
+</header>
+
+<!-- Filter Bar -->
+<div class="filter-bar">
+
+  <!-- Row 1: pill groups -->
+  <div class="filter-row">
+    <span class="filter-label">TOPIC</span>
+    <div class="pill-group">
+      <span class="pill active">ALL</span>
+      <span class="pill active" style="background:color-mix(in srgb,var(--accent) 14%,transparent);border-color:var(--accent);color:var(--accent);">GEOPOLITICS</span>
+      <span class="pill">TECH</span>
+      <span class="pill">ECONOMIC</span>
+      <span class="pill active" style="background:color-mix(in srgb,var(--accent) 14%,transparent);border-color:var(--accent);color:var(--accent);">SCIENCE</span>
+      <span class="pill">MEDIA</span>
+      <span class="pill">CELEBRITY</span>
+      <span class="pill">GENERAL</span>
+    </div>
+
+    <div class="filter-sep"></div>
+
+    <span class="filter-label">TIME</span>
+    <div class="pill-group">
+      <span class="pill active">ALL</span>
+      <span class="pill">&lt; 1H</span>
+      <span class="pill">&lt; 6H</span>
+      <span class="pill">&lt; 24H</span>
+    </div>
+
+    <div class="filter-sep"></div>
+
+    <span class="filter-label">SOURCES</span>
+    <div class="pill-group">
+      <span class="pill active">ANY</span>
+      <span class="pill">2+</span>
+      <span class="pill">3+</span>
+      <span class="pill">4+</span>
+    </div>
+  </div>
+
+  <!-- Row 2: active chips (only when filters are on) -->
+  <div class="active-chips-row">
+    <span style="font-family:var(--mono);font-size:9px;color:var(--slate);margin-right:2px;">ACTIVE:</span>
+    <span class="active-chip">GEOPOLITICS <span class="chip-x">×</span></span>
+    <span class="active-chip">SCIENCE <span class="chip-x">×</span></span>
+    <span class="filter-count">28 of 100 signals</span>
+    <button class="clear-all">CLEAR ALL</button>
+  </div>
+
+</div>
+
+<!-- Sample cards -->
+<div style="padding:16px 20px;">
+  <div class="card">
+    <div class="card-title">NATO Allies Reach Agreement on Ukraine Aid Package Ahead of Summit</div>
+    <div class="card-meta">
+      <span>Reuters</span><span>·</span><span>12 min ago</span><span>·</span><span>5 sources</span>
+      <span class="tag geo">GEOPOLITICS</span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">NASA Confirms Evidence of Ancient Water Channels on Mars Surface</div>
+    <div class="card-meta">
+      <span>BBC Science</span><span>·</span><span>31 min ago</span><span>·</span><span>3 sources</span>
+      <span class="tag" style="border-color:#3a6a6a;color:#60b0b0;">SCIENCE</span>
+    </div>
+  </div>
+  <div class="card" style="opacity:.4;border-style:dashed;">
+    <div class="card-title" style="font-size:11px;">Fed Raises Rates by 0.5% — filtered out (ECONOMIC tag)</div>
+  </div>
+</div>
+
+<br>
+<!-- ══════════════════════════════════════════════
+     SECTION 2 — COLOR PICKER (welcome modal)
+════════════════════════════════════════════════ -->
+<div class="section-title">▸ MOCKUP B — COLOR PICKER (inside welcome modal)</div>
+<p class="note">Appears in the welcome popup. Persists to localStorage. Updates --color-green and --color-deep-green site-wide instantly.</p>
+
+<div class="color-picker-wrap">
+  <div class="cp-title">SIGNAL COLOR</div>
+  <div class="cp-sub">Choose the accent color used across the dashboard.</div>
+
+  <div class="color-picker-row">
+    <!-- Green (default/selected) -->
+    <div style="text-align:center;">
+      <div class="color-swatch selected" style="background:#35ff7a;"></div>
+      <div style="font-family:var(--mono);font-size:8px;color:var(--slate);margin-top:20px;">GREEN</div>
+    </div>
+    <!-- White -->
+    <div style="text-align:center;">
+      <div class="color-swatch" style="background:#e2e8e2;"></div>
+      <div style="font-family:var(--mono);font-size:8px;color:var(--slate);margin-top:20px;">WHITE</div>
+    </div>
+    <!-- Purple -->
+    <div style="text-align:center;">
+      <div class="color-swatch" style="background:#c084fc;"></div>
+      <div style="font-family:var(--mono);font-size:8px;color:var(--slate);margin-top:20px;">PURPLE</div>
+    </div>
+    <!-- Indigo -->
+    <div style="text-align:center;">
+      <div class="color-swatch" style="background:#818cf8;"></div>
+      <div style="font-family:var(--mono);font-size:8px;color:var(--slate);margin-top:20px;">INDIGO</div>
+    </div>
+    <!-- Blue -->
+    <div style="text-align:center;">
+      <div class="color-swatch" style="background:#38bdf8;"></div>
+      <div style="font-family:var(--mono);font-size:8px;color:var(--slate);margin-top:20px;">BLUE</div>
+    </div>
+    <!-- Amber -->
+    <div style="text-align:center;">
+      <div class="color-swatch" style="background:#fbbf24;"></div>
+      <div style="font-family:var(--mono);font-size:8px;color:var(--slate);margin-top:20px;">AMBER</div>
+    </div>
+  </div>
+
+  <!-- Live preview strip -->
+  <div class="demo-block">
+    <div class="demo-accent">▸ PRIORITY SIGNAL — LIVE ACCENT PREVIEW</div>
+    <div class="demo-bar"></div>
+    <div style="margin-top:10px;font-size:11px;color:var(--slate);">
+      Tag chips, borders, buttons, links, and panel labels all update instantly.
+    </div>
+  </div>
+</div>
+
+<br><br>
+
+</body>
+</html>
