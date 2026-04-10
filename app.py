@@ -21,6 +21,13 @@ from rapidfuzz import fuzz
 # Suppress dateutil tzname warning
 warnings.filterwarnings('ignore', message='.*tzname.*')
 
+# Optional Google Trends support — app works without it
+try:
+    from pytrends.request import TrendReq as _TrendReq
+    _PYTRENDS_AVAILABLE = True
+except ImportError:
+    _PYTRENDS_AVAILABLE = False
+
 
 BASE = Path(__file__).resolve().parent
 DB = BASE / 'project_rollup.db'
@@ -29,11 +36,13 @@ MAX_ITEMS = 100
 SUMMARY_WORDS = 400
 MAX_BODY_CHARS = 14000
 FEED_TIMEOUT = 12  # Timeout per feed request in seconds
-REFRESH_INTERVAL = 300  # Background refresh every 5 minutes
+REFRESH_INTERVAL = 300   # Background news refresh every 5 minutes
+TRENDS_REFRESH_INTERVAL = 1200  # Background trend refresh every 20 minutes
 
 # ── Runtime health tracking (Task 7) ──────────────────────────────────────────
 _feed_health: dict[str, bool] = {}
 _last_refresh_time: datetime | None = None
+_last_trends_time: datetime | None = None
 
 app = FastAPI(title='Project RollUp')
 app.add_middleware(
@@ -203,6 +212,15 @@ def init_db():
                 'INSERT OR IGNORE INTO source_locations (outlet_name, address, lat, lon) VALUES (?,?,?,?)',
                 (name, address, lat, lon)
             )
+
+        # Trends cache — single JSON blob, refreshed every 20 min
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS trend_cache (
+                id INTEGER PRIMARY KEY,
+                data TEXT NOT NULL,
+                fetched_at TEXT NOT NULL
+            )"""
+        )
         conn.commit()
 
 
@@ -211,6 +229,247 @@ def cleanup_old_stories():
     with db() as conn:
         conn.execute('DELETE FROM stories WHERE created_at < ?', (cutoff,))
         conn.commit()
+
+
+# ── Trends helpers ────────────────────────────────────────────────────────────
+
+def _save_trends(trends: list) -> None:
+    with db() as conn:
+        conn.execute('DELETE FROM trend_cache')
+        conn.execute(
+            'INSERT INTO trend_cache (id, data, fetched_at) VALUES (1, ?, ?)',
+            (json.dumps(trends), datetime.now(timezone.utc).isoformat()),
+        )
+        conn.commit()
+
+
+def _load_trends() -> tuple[list, str | None]:
+    try:
+        with db() as conn:
+            row = conn.execute(
+                'SELECT data, fetched_at FROM trend_cache WHERE id = 1'
+            ).fetchone()
+            if row:
+                return json.loads(row['data']), row['fetched_at']
+    except Exception:
+        pass
+    return [], None
+
+
+def _normalize_topic(topic: str) -> str:
+    t = topic.lower()
+    t = re.sub(r'[^\w\s]', ' ', t)
+    return re.sub(r'\s+', ' ', t).strip()
+
+
+def _velocity(raw_score: int, age_minutes: int, platform: str) -> str:
+    if age_minutes <= 0:
+        return 'ACCELERATING'
+    if platform == 'Google Trends':
+        if raw_score >= 80:
+            return 'ACCELERATING'
+        return 'PEAKING' if raw_score >= 40 else 'STEADY'
+    sph = (raw_score / max(age_minutes, 1)) * 60  # score per hour
+    if platform == 'HackerNews':
+        if sph > 80 or (raw_score > 200 and age_minutes < 120):
+            return 'ACCELERATING'
+        if sph > 20 or raw_score > 80:
+            return 'PEAKING'
+        return 'FADING' if age_minutes > 600 else 'STEADY'
+    if platform == 'Reddit':
+        if sph > 3000 or (raw_score > 15000 and age_minutes < 180):
+            return 'ACCELERATING'
+        if sph > 600 or raw_score > 3000:
+            return 'PEAKING'
+        return 'FADING' if age_minutes > 720 else 'STEADY'
+    return 'STEADY'
+
+
+async def _fetch_hn(client: httpx.AsyncClient) -> list:
+    try:
+        res = await client.get(
+            'https://hacker-news.firebaseio.com/v0/topstories.json', timeout=10.0
+        )
+        ids = res.json()[:15]
+        tasks = [
+            client.get(f'https://hacker-news.firebaseio.com/v0/item/{sid}.json', timeout=8.0)
+            for sid in ids
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        now_ts = datetime.now(timezone.utc).timestamp()
+        out = []
+        for r in results:
+            if isinstance(r, Exception):
+                continue
+            try:
+                item = r.json()
+            except Exception:
+                continue
+            if not item or item.get('type') != 'story':
+                continue
+            title = (item.get('title') or '').strip()
+            if not title:
+                continue
+            age_min = max(0, int((now_ts - item.get('time', now_ts)) / 60))
+            out.append({
+                'topic': title,
+                'platform': 'HackerNews',
+                'url': item.get('url') or f'https://news.ycombinator.com/item?id={item["id"]}',
+                'raw_score': item.get('score', 0),
+                'comments': item.get('descendants', 0),
+                'age_minutes': age_min,
+            })
+        return out
+    except Exception:
+        return []
+
+
+async def _fetch_reddit(client: httpx.AsyncClient) -> list:
+    try:
+        res = await client.get(
+            'https://www.reddit.com/r/all/hot.json?limit=20',
+            headers={'User-Agent': 'ProjectRollUp/1.0 (news aggregator)'},
+            timeout=10.0,
+        )
+        posts = res.json().get('data', {}).get('children', [])
+        now_ts = datetime.now(timezone.utc).timestamp()
+        out = []
+        for post in posts:
+            p = post.get('data', {})
+            title = (p.get('title') or '').strip()
+            if not title:
+                continue
+            age_min = max(0, int((now_ts - p.get('created_utc', now_ts)) / 60))
+            out.append({
+                'topic': title,
+                'platform': 'Reddit',
+                'url': f'https://reddit.com{p.get("permalink", "")}',
+                'subreddit': p.get('subreddit_name_prefixed', ''),
+                'raw_score': p.get('score', 0),
+                'comments': p.get('num_comments', 0),
+                'age_minutes': age_min,
+            })
+        return out
+    except Exception:
+        return []
+
+
+def _fetch_google_trends_sync() -> list:
+    if not _PYTRENDS_AVAILABLE:
+        return []
+    try:
+        pt = _TrendReq(hl='en-US', tz=360, timeout=(10, 25), retries=1, backoff_factor=0.5)
+        df = pt.trending_searches(pn='united_states')
+        out = []
+        for i, topic in enumerate(df[0][:20]):
+            topic = str(topic).strip()
+            if not topic:
+                continue
+            out.append({
+                'topic': topic,
+                'platform': 'Google Trends',
+                'url': f'https://trends.google.com/trends/explore?q={topic.replace(" ", "+")}',
+                'raw_score': max(0, 100 - i * 5),
+                'comments': 0,
+                'age_minutes': 0,
+            })
+        return out
+    except Exception:
+        return []
+
+
+def _aggregate_trends(hn: list, reddit: list, google: list) -> list:
+    raw_all = (
+        [{**t, 'sources': ['HackerNews']} for t in hn]
+        + [{**t, 'sources': ['Reddit']} for t in reddit]
+        + [{**t, 'sources': ['Google Trends']} for t in google]
+    )
+
+    merged: list[dict] = []
+    for raw in raw_all:
+        norm = _normalize_topic(raw['topic'])
+        found = None
+        for m in merged:
+            if fuzz.token_set_ratio(norm, _normalize_topic(m['topic'])) >= 75:
+                found = m
+                break
+        if found:
+            if raw['platform'] not in found['platforms']:
+                found['platforms'].append(raw['platform'])
+            found['raw_scores'].append(raw['raw_score'])
+            found['total_comments'] += raw.get('comments', 0)
+            found['age_minutes'] = min(found['age_minutes'], raw['age_minutes'])
+        else:
+            merged.append({
+                'topic': raw['topic'],
+                'primary_platform': raw['platform'],
+                'platforms': [raw['platform']],
+                'url': raw.get('url', ''),
+                'raw_scores': [raw['raw_score']],
+                'total_comments': raw.get('comments', 0),
+                'age_minutes': raw['age_minutes'],
+                'subreddit': raw.get('subreddit', ''),
+            })
+
+    results = []
+    for m in merged:
+        peak = max(m['raw_scores']) if m['raw_scores'] else 0
+        pp = m['primary_platform']
+        if pp == 'HackerNews':
+            norm_score = min(1.0, peak / 500)
+        elif pp == 'Reddit':
+            norm_score = min(1.0, peak / 50000)
+        else:
+            norm_score = peak / 100
+        cross_count = len(m['platforms'])
+        composite = round(min(1.0, norm_score + (cross_count - 1) * 0.15), 3)
+        vel = _velocity(peak, m['age_minutes'], pp)
+        cats = classify_tags(m['topic'], '')
+        age_min = m['age_minutes']
+        if age_min < 60:
+            age_label = f'{age_min}m ago'
+        elif age_min < 1440:
+            age_label = f'{age_min // 60}h ago'
+        else:
+            age_label = f'{age_min // 1440}d ago'
+        results.append({
+            'topic': m['topic'],
+            'primary_platform': pp,
+            'platforms': m['platforms'],
+            'url': m['url'],
+            'composite_score': composite,
+            'velocity': vel,
+            'categories': cats,
+            'cross_platform_count': cross_count,
+            'age_minutes': age_min,
+            'age_label': age_label,
+            'signals': peak,
+            'comments': m['total_comments'],
+            'subreddit': m.get('subreddit', ''),
+        })
+
+    results.sort(key=lambda x: (x['cross_platform_count'], x['composite_score']), reverse=True)
+    return results[:30]
+
+
+async def refresh_trends_async() -> list:
+    global _last_trends_time
+    async with httpx.AsyncClient(follow_redirects=True) as client:
+        hn_res, reddit_res = await asyncio.gather(
+            _fetch_hn(client),
+            _fetch_reddit(client),
+            return_exceptions=True,
+        )
+    hn = hn_res if isinstance(hn_res, list) else []
+    reddit = reddit_res if isinstance(reddit_res, list) else []
+
+    loop = asyncio.get_event_loop()
+    google = await loop.run_in_executor(None, _fetch_google_trends_sync)
+
+    trends = _aggregate_trends(hn, reddit, google)
+    _save_trends(trends)
+    _last_trends_time = datetime.now(timezone.utc)
+    return trends
 
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
@@ -740,6 +999,16 @@ async def _background_refresh_loop():
             pass
 
 
+async def _background_trends_loop():
+    await asyncio.sleep(30)  # Stagger start so news loads first
+    while True:
+        try:
+            await refresh_trends_async()
+        except Exception:
+            pass
+        await asyncio.sleep(TRENDS_REFRESH_INTERVAL)
+
+
 # ── App lifecycle ─────────────────────────────────────────────────────────────
 
 @app.on_event('startup')
@@ -751,6 +1020,7 @@ async def _startup():
     except Exception:
         pass
     asyncio.create_task(_background_refresh_loop())
+    asyncio.create_task(_background_trends_loop())
 
 
 # ── API endpoints ─────────────────────────────────────────────────────────────
@@ -931,3 +1201,25 @@ async def health():
 async def api_refresh():
     items = await refresh_cache_async()
     return JSONResponse({'items': len(items), 'as_of': datetime.now(timezone.utc).isoformat()})
+
+
+@app.get('/api/trends')
+async def api_trends():
+    """Return cached internet trends. Fetches on demand if cache is empty."""
+    trends, fetched_at = _load_trends()
+    if not trends:
+        try:
+            trends = await refresh_trends_async()
+            _, fetched_at = _load_trends()
+        except Exception:
+            trends = []
+            fetched_at = None
+    active_sources = ['HackerNews', 'Reddit']
+    if _PYTRENDS_AVAILABLE:
+        active_sources.append('Google Trends')
+    return JSONResponse({
+        'trends': trends,
+        'as_of': fetched_at or datetime.now(timezone.utc).isoformat(),
+        'sources': active_sources,
+        'count': len(trends),
+    })

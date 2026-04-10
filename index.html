@@ -20,48 +20,90 @@
       </div>
     </header>
 
-    <nav class='toolbar' aria-label='News controls'>
-      <input id='searchInput' class='searchInput' type='search' placeholder='Search headlines, sources, topics' />
-      <select id='sourceFilter' class='selectInput' aria-label='Filter by source'>
-        <option value='all'>All sources</option>
-      </select>
-      <select id='sortSelect' class='selectInput' aria-label='Sort stories'>
-        <option value='rank'>Top ranked</option>
-        <option value='time'>Newest first</option>
-        <option value='source'>Source count</option>
-      </select>
-      <button class='btnGhost' id='moreBtn' type='button'>Load more</button>
-      <div class='toolbarNote' id='resultCount'>0 headlines</div>
+    <nav class='tabNav' aria-label='Main tabs'>
+      <button class='tabBtn active' id='tabNews' data-tab='news' type='button'>News Feed</button>
+      <button class='tabBtn' id='tabTrends' data-tab='trends' type='button'>Trends</button>
     </nav>
 
-    <main class='mainGrid'>
-      <section class='storiesPanel' aria-label='Headline feed'>
-        <div class='storiesHeader'>
-          <div>
-            <h2 class='sectionTitle'>Headlines</h2>
-            <div class='sectionHint'>Click a headline to open the fact-based write-up. Use arrow keys to move through items.</div>
-          </div>
-          <div class='sectionHint' id='windowInfo'></div>
-        </div>
-        <div class='storyListWrap' id='storyListWrap'>
-          <div class='storyList' id='storyList'></div>
-        </div>
-      </section>
+    <div id='newsView'>
+      <nav class='toolbar' aria-label='News controls'>
+        <input id='searchInput' class='searchInput' type='search' placeholder='Search headlines, sources, topics' />
+        <select id='sourceFilter' class='selectInput' aria-label='Filter by source'>
+          <option value='all'>All sources</option>
+        </select>
+        <select id='sortSelect' class='selectInput' aria-label='Sort stories'>
+          <option value='rank'>Top ranked</option>
+          <option value='time'>Newest first</option>
+          <option value='source'>Source count</option>
+        </select>
+        <button class='btnGhost' id='moreBtn' type='button'>Load more</button>
+        <div class='toolbarNote' id='resultCount'>0 headlines</div>
+      </nav>
 
-      <aside class='detailPanel' aria-label='Selected story details'>
-        <div class='detailCard' id='detailCard'>
-          <div class='detailKicker'>SELECTED STORY</div>
-          <h3 class='detailTitle' id='detailTitle'>Choose a headline</h3>
-          <div class='detailMeta' id='detailMeta'>The selection detail will appear here.</div>
-          <p class='detailSummary' id='detailSummary'>Select a headline to see a concise, fact-based write-up based on available feed text and article content when available.</p>
-          <div class='detailActions'>
-            <button class='btnPrimary' id='openSummaryBtn' type='button' disabled>Open write-up</button>
-            <button class='btnGhost' id='toggleCompactBtn' type='button'>Toggle compact cards</button>
+      <main class='mainGrid'>
+        <section class='storiesPanel' aria-label='Headline feed'>
+          <div class='storiesHeader'>
+            <div>
+              <h2 class='sectionTitle'>Headlines</h2>
+              <div class='sectionHint'>Click a headline to open the fact-based write-up. Use arrow keys to move through items.</div>
+            </div>
+            <div class='sectionHint' id='windowInfo'></div>
           </div>
-          <div class='detailFacts' id='detailFacts'></div>
+          <div class='storyListWrap' id='storyListWrap'>
+            <div class='storyList' id='storyList'></div>
+          </div>
+        </section>
+
+        <aside class='detailPanel' aria-label='Selected story details'>
+          <div class='detailCard' id='detailCard'>
+            <div class='detailKicker'>SELECTED STORY</div>
+            <h3 class='detailTitle' id='detailTitle'>Choose a headline</h3>
+            <div class='detailMeta' id='detailMeta'>The selection detail will appear here.</div>
+            <p class='detailSummary' id='detailSummary'>Select a headline to see a concise, fact-based write-up based on available feed text and article content when available.</p>
+            <div class='detailActions'>
+              <button class='btnPrimary' id='openSummaryBtn' type='button' disabled>Open write-up</button>
+              <button class='btnGhost' id='toggleCompactBtn' type='button'>Toggle compact cards</button>
+            </div>
+            <div class='detailFacts' id='detailFacts'></div>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <div id='trendsView' hidden>
+      <nav class='toolbar trendsToolbar' aria-label='Trends controls'>
+        <select id='trendCategoryFilter' class='selectInput' aria-label='Filter by category'>
+          <option value='all'>All categories</option>
+          <option value='Tech'>Tech</option>
+          <option value='Geopolitics'>Geopolitics</option>
+          <option value='Economic'>Economic</option>
+          <option value='Scientific Reports'>Scientific</option>
+          <option value='Celebrity News'>Entertainment</option>
+          <option value='General'>General</option>
+        </select>
+        <select id='trendVelocityFilter' class='selectInput' aria-label='Filter by velocity'>
+          <option value='all'>All velocities</option>
+          <option value='ACCELERATING'>Accelerating</option>
+          <option value='PEAKING'>Peaking</option>
+          <option value='STEADY'>Steady</option>
+          <option value='FADING'>Fading</option>
+        </select>
+        <button class='btnGhost' id='trendRefreshBtn' type='button'>Refresh</button>
+        <div class='toolbarNote' id='trendCount'>0 trends</div>
+        <div class='toolbarNote' id='trendSources'></div>
+      </nav>
+
+      <section class='trendsPanel' aria-label='Trending topics'>
+        <div class='trendsHeader'>
+          <div>
+            <h2 class='sectionTitle'>Internet Trends</h2>
+            <div class='sectionHint'>Aggregated from HackerNews, Reddit &amp; Google Trends · Refreshes every 20 min</div>
+          </div>
+          <div class='sectionHint' id='trendAsOf'></div>
         </div>
-      </aside>
-    </main>
+        <div class='trendList' id='trendList'><div class='loadState'>Switch to this tab to load trends.</div></div>
+      </section>
+    </div>
   </div>
 
   <aside class='globeWidget' id='globeWidget' aria-hidden='true'>

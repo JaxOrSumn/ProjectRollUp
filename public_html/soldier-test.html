@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Combat Soldier — Pixel Art QA</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#0b0f0b;display:flex;flex-direction:column;align-items:center;padding:40px 20px;gap:48px;font-family:'JetBrains Mono',monospace;}
+.label{color:#8a9490;font-size:10px;letter-spacing:.14em;text-transform:uppercase;margin-bottom:8px;}
+.name{color:#35ff7a;font-size:13px;letter-spacing:.1em;text-transform:uppercase;font-weight:700;margin-bottom:16px;}
+.row{display:flex;gap:48px;align-items:flex-start;justify-content:center;flex-wrap:wrap;}
+.frame{background:#111611;border:1px solid #1f2b1f;border-radius:4px;padding:20px;display:flex;align-items:center;justify-content:center;}
+.frame.sm{padding:10px;width:84px;height:84px;}
+.desc{color:#8a9490;font-size:9px;letter-spacing:.08em;text-align:center;max-width:200px;line-height:1.6;margin-top:12px;}
+</style>
+</head>
+<body>
+
+<div style="color:#35ff7a;font-size:11px;letter-spacing:.12em;">COMBAT SOLDIER — PIXEL ART QA</div>
+<div style="color:#8a9490;font-size:9px;letter-spacing:.08em;">Full size (left) · Header widget size (right)</div>
+
+<div class="row">
+
+  <!-- FULL SIZE -->
+  <div style="display:flex;flex-direction:column;align-items:center;">
+    <div class="label">Full Size</div>
+    <div class="frame">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 204" width="192" height="204" style="image-rendering:pixelated;image-rendering:crisp-edges;">
+        <defs>
+          <filter id="gs" x="-25%" y="-25%" width="150%" height="150%">
+            <feGaussianBlur stdDeviation="2" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <g filter="url(#gs)">
+
+          <!-- ═══ HELMET ═══ -->
+          <!-- Row 0: helmet peak (cols 14-22, 9px wide) -->
+          <rect x="84" y="0"  width="54" height="6" fill="#053d1c"/>
+          <!-- Row 1: helmet dome (cols 13-23, 11px wide) -->
+          <rect x="78" y="6"  width="66" height="6" fill="#053d1c"/>
+          <!-- Row 2: helmet (12-13=dark, 14-22=dark-mid, 23-24=dark) -->
+          <rect x="72" y="12" width="12" height="6" fill="#053d1c"/>
+          <rect x="84" y="12" width="54" height="6" fill="#0d6b30"/>
+          <rect x="138" y="12" width="12" height="6" fill="#053d1c"/>
+          <!-- Row 3: helmet bright face (12=D, 13=C, 14-21=bright, 22=C, 23-24=D) -->
+          <rect x="72" y="18" width="6"  height="6" fill="#053d1c"/>
+          <rect x="78" y="18" width="6"  height="6" fill="#0d6b30"/>
+          <rect x="84" y="18" width="48" height="6" fill="#35ff7a"/>
+          <rect x="132" y="18" width="6" height="6" fill="#0d6b30"/>
+          <rect x="138" y="18" width="12" height="6" fill="#053d1c"/>
+          <!-- helmet specular highlight top-left -->
+          <rect x="90" y="18" width="6" height="6" fill="#9fffbc"/>
+          <!-- Row 4: helmet bright face (same) -->
+          <rect x="72" y="24" width="6"  height="6" fill="#053d1c"/>
+          <rect x="78" y="24" width="6"  height="6" fill="#0d6b30"/>
+          <rect x="84" y="24" width="48" height="6" fill="#35ff7a"/>
+          <rect x="132" y="24" width="6" height="6" fill="#0d6b30"/>
+          <rect x="138" y="24" width="12" height="6" fill="#053d1c"/>
+          <!-- Row 5: VISOR (black strip) -->
+          <rect x="72" y="30" width="6"  height="6" fill="#053d1c"/>
+          <rect x="78" y="30" width="6"  height="6" fill="#0d6b30"/>
+          <rect x="84" y="30" width="48" height="6" fill="#010a04"/>
+          <rect x="132" y="30" width="6" height="6" fill="#0d6b30"/>
+          <rect x="138" y="30" width="12" height="6" fill="#053d1c"/>
+          <!-- visor glint pixel -->
+          <rect x="96" y="31" width="8" height="3" fill="#0d3d1c"/>
+          <!-- Row 6: helmet brim (cols 13-23) -->
+          <rect x="78" y="36" width="66" height="6" fill="#053d1c"/>
+
+          <!-- ═══ FACE / CHIN ═══ -->
+          <!-- Rows 7-8: face (cols 14-22) -->
+          <rect x="84" y="42" width="54" height="12" fill="#1db854"/>
+          <!-- chin strap sides -->
+          <rect x="78" y="42" width="6"  height="12" fill="#053d1c"/>
+          <rect x="138" y="42" width="6" height="12" fill="#053d1c"/>
+          <!-- Row 9: neck (cols 14-20) -->
+          <rect x="84" y="54" width="42" height="6" fill="#1db854"/>
+
+          <!-- ═══ SHOULDERS ═══ -->
+          <!-- Row 10: shoulders + backpack start (11-13=C, 14-21=B, 22-27=C) -->
+          <rect x="66" y="60" width="18" height="6" fill="#0d6b30"/>
+          <rect x="84" y="60" width="48" height="6" fill="#1db854"/>
+          <rect x="132" y="60" width="36" height="6" fill="#0d6b30"/>
+          <!-- shoulder pad detail -->
+          <rect x="66" y="60" width="18" height="3" fill="#0a5020"/>
+
+          <!-- ═══ UPPER CHEST + BACKPACK ═══ -->
+          <!-- Rows 11-12: (10-13=C, 14-21=B, 22-28=C backpack) -->
+          <rect x="60" y="66" width="24" height="12" fill="#0d6b30"/>
+          <rect x="84" y="66" width="48" height="12" fill="#1db854"/>
+          <rect x="132" y="66" width="42" height="12" fill="#0d6b30"/>
+          <!-- backpack vertical strap -->
+          <rect x="138" y="60" width="6" height="66" fill="#064018"/>
+          <!-- backpack edge highlight -->
+          <rect x="168" y="66" width="6" height="60" fill="#0a5020"/>
+
+          <!-- ═══ RIFLE STOCK + LEFT SHOULDER ═══ -->
+          <!-- Row 13: (0-4=stock, 5-12=C arm, 13-21=B chest, 22-28=C backpack) -->
+          <rect x="0"  y="78" width="30" height="6" fill="#053d1c"/>
+          <rect x="30" y="78" width="48" height="6" fill="#0d6b30"/>
+          <rect x="78" y="78" width="54" height="6" fill="#1db854"/>
+          <rect x="132" y="78" width="42" height="6" fill="#0d6b30"/>
+          <!-- rifle stock detail -->
+          <rect x="0"  y="78" width="30" height="2" fill="#0a5020"/>
+
+          <!-- ═══ RIFLE BARREL (main) ═══ -->
+          <!-- Row 14: full barrel (cols 0-22=rifle, 23-27=backpack) -->
+          <rect x="0"  y="84" width="138" height="6" fill="#0d6b30"/>
+          <rect x="138" y="84" width="30" height="6" fill="#064018"/>
+          <!-- barrel top highlight stripe -->
+          <rect x="0"  y="84" width="138" height="2" fill="#1db854"/>
+          <!-- barrel end highlight -->
+          <rect x="0"  y="84" width="6"  height="6" fill="#35ff7a"/>
+          <!-- Row 15: lower barrel (cols 2-22, 23-27=backpack) -->
+          <rect x="12" y="90" width="126" height="6" fill="#053d1c"/>
+          <rect x="138" y="90" width="30" height="6" fill="#064018"/>
+
+          <!-- ═══ TRIGGER / GRIP / MAGAZINE ═══ -->
+          <!-- trigger guard at col 12 -->
+          <rect x="72" y="78" width="6" height="18" fill="#021a0a"/>
+          <!-- magazine below grip (cols 11-13, rows 16-19) -->
+          <rect x="66" y="96" width="18" height="24" fill="#053d1c"/>
+          <!-- magazine highlight -->
+          <rect x="66" y="96" width="4" height="24" fill="#0a5020"/>
+
+          <!-- ═══ TACTICAL VEST (lower chest) ═══ -->
+          <!-- Row 16: (10-13=C, 14-21=B, 22-28=C) -->
+          <rect x="60" y="96"  width="6"  height="6" fill="#0d6b30"/>
+          <rect x="84" y="96"  width="48" height="6" fill="#1db854"/>
+          <rect x="132" y="96" width="42" height="6" fill="#0d6b30"/>
+          <!-- Rows 17-18: chest pouches -->
+          <rect x="60" y="102" width="6"  height="12" fill="#0d6b30"/>
+          <rect x="84" y="102" width="48" height="12" fill="#1db854"/>
+          <rect x="132" y="102" width="42" height="12" fill="#0d6b30"/>
+          <!-- pouch dividers on vest -->
+          <rect x="84"  y="102" width="3" height="12" fill="#0a5020"/>
+          <rect x="102" y="102" width="3" height="12" fill="#0a5020"/>
+          <rect x="120" y="102" width="3" height="12" fill="#0a5020"/>
+
+          <!-- ═══ BELT ═══ -->
+          <!-- Row 19: belt (cols 11-25) -->
+          <rect x="66" y="114" width="90" height="6" fill="#021a0a"/>
+          <!-- belt buckle highlight -->
+          <rect x="105" y="114" width="12" height="6" fill="#0d6b30"/>
+          <rect x="108" y="115" width="6"  height="4" fill="#1db854"/>
+
+          <!-- ═══ HIPS ═══ -->
+          <!-- Rows 20-21: (11-14=C, 15-20=B, 21-25=C) -->
+          <rect x="66" y="120" width="24" height="12" fill="#0d6b30"/>
+          <rect x="90" y="120" width="36" height="12" fill="#1db854"/>
+          <rect x="126" y="120" width="30" height="12" fill="#0d6b30"/>
+
+          <!-- ═══ UPPER LEGS ═══ -->
+          <!-- Row 22: legs together (11-12=C, 13-22=B, 23-24=C) -->
+          <rect x="66" y="132" width="12" height="6" fill="#0d6b30"/>
+          <rect x="78" y="132" width="60" height="6" fill="#1db854"/>
+          <rect x="138" y="132" width="12" height="6" fill="#0d6b30"/>
+
+          <!-- ═══ LEGS SPLIT ═══ -->
+          <!-- Rows 23-27: left leg (11-12=C, 13-16=B) | gap | right leg (18-22=B, 23-24=C) -->
+          <rect x="66" y="138" width="12" height="30" fill="#0d6b30"/>
+          <rect x="78" y="138" width="24" height="30" fill="#1db854"/>
+          <!-- gap col 17 = x102 transparent -->
+          <rect x="108" y="138" width="30" height="30" fill="#1db854"/>
+          <rect x="138" y="138" width="12" height="30" fill="#0d6b30"/>
+          <!-- leg crease / seam detail -->
+          <rect x="90"  y="138" width="3" height="30" fill="#0a5020"/>
+          <rect x="126" y="138" width="3" height="30" fill="#0a5020"/>
+
+          <!-- ═══ LOWER LEGS ═══ -->
+          <!-- Rows 28-30: (11=D, 12-13=C, 14-15=B | gap | 18-21=B, 22-23=C, 24=D) -->
+          <rect x="66" y="168" width="6"  height="18" fill="#053d1c"/>
+          <rect x="72" y="168" width="12" height="18" fill="#0d6b30"/>
+          <rect x="84" y="168" width="12" height="18" fill="#1db854"/>
+          <!-- gap x96-107 -->
+          <rect x="108" y="168" width="24" height="18" fill="#1db854"/>
+          <rect x="132" y="168" width="12" height="18" fill="#0d6b30"/>
+          <rect x="144" y="168" width="6"  height="18" fill="#053d1c"/>
+
+          <!-- ═══ BOOTS ═══ -->
+          <!-- Row 31: boot top (10=D, 11-13=C, 14-15=B | gap | 18-21=B, 22-24=C, 25=D) -->
+          <rect x="60" y="186" width="6"  height="6" fill="#053d1c"/>
+          <rect x="66" y="186" width="18" height="6" fill="#0d6b30"/>
+          <rect x="84" y="186" width="12" height="6" fill="#1db854"/>
+          <!-- gap -->
+          <rect x="108" y="186" width="24" height="6" fill="#1db854"/>
+          <rect x="132" y="186" width="18" height="6" fill="#0d6b30"/>
+          <rect x="150" y="186" width="6"  height="6" fill="#053d1c"/>
+          <!-- Row 32: boot sole (10-15=black | gap | 18-25=black) -->
+          <rect x="60" y="192" width="36" height="6" fill="#021a0a"/>
+          <!-- gap x96-107 -->
+          <rect x="108" y="192" width="48" height="6" fill="#021a0a"/>
+          <!-- boot toe extensions -->
+          <rect x="54" y="192" width="6"  height="6" fill="#021a0a"/>
+          <rect x="156" y="192" width="6" height="6" fill="#021a0a"/>
+
+          <!-- ═══ BACKPACK DETAIL ═══ -->
+          <rect x="144" y="66" width="24" height="60" fill="#064018"/>
+          <rect x="162" y="72" width="6"  height="48" fill="#0a5020"/>
+
+        </g>
+      </svg>
+    </div>
+    <div class="desc">Combat-ready pixel soldier. Helmet + visor, tactical vest with pouches, rifle, backpack, split legs, boots.</div>
+  </div>
+
+  <!-- HEADER WIDGET SIZE -->
+  <div style="display:flex;flex-direction:column;align-items:center;">
+    <div class="label">Header Widget Size</div>
+    <div class="frame sm">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 204" width="60" height="64" style="image-rendering:pixelated;image-rendering:crisp-edges;">
+        <defs>
+          <filter id="gs2" x="-25%" y="-25%" width="150%" height="150%">
+            <feGaussianBlur stdDeviation="2" result="blur"/>
+            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+          </filter>
+        </defs>
+        <g filter="url(#gs2)">
+          <rect x="84" y="0"  width="54" height="6" fill="#053d1c"/>
+          <rect x="78" y="6"  width="66" height="6" fill="#053d1c"/>
+          <rect x="72" y="12" width="12" height="6" fill="#053d1c"/>
+          <rect x="84" y="12" width="54" height="6" fill="#0d6b30"/>
+          <rect x="138" y="12" width="12" height="6" fill="#053d1c"/>
+          <rect x="72" y="18" width="6"  height="6" fill="#053d1c"/>
+          <rect x="78" y="18" width="6"  height="6" fill="#0d6b30"/>
+          <rect x="84" y="18" width="48" height="6" fill="#35ff7a"/>
+          <rect x="132" y="18" width="6" height="6" fill="#0d6b30"/>
+          <rect x="138" y="18" width="12" height="6" fill="#053d1c"/>
+          <rect x="90" y="18" width="6" height="6" fill="#9fffbc"/>
+          <rect x="72" y="24" width="6"  height="6" fill="#053d1c"/>
+          <rect x="78" y="24" width="6"  height="6" fill="#0d6b30"/>
+          <rect x="84" y="24" width="48" height="6" fill="#35ff7a"/>
+          <rect x="132" y="24" width="6" height="6" fill="#0d6b30"/>
+          <rect x="138" y="24" width="12" height="6" fill="#053d1c"/>
+          <rect x="72" y="30" width="6"  height="6" fill="#053d1c"/>
+          <rect x="78" y="30" width="6"  height="6" fill="#0d6b30"/>
+          <rect x="84" y="30" width="48" height="6" fill="#010a04"/>
+          <rect x="132" y="30" width="6" height="6" fill="#0d6b30"/>
+          <rect x="138" y="30" width="12" height="6" fill="#053d1c"/>
+          <rect x="78" y="36" width="66" height="6" fill="#053d1c"/>
+          <rect x="84" y="42" width="54" height="12" fill="#1db854"/>
+          <rect x="78" y="42" width="6"  height="12" fill="#053d1c"/>
+          <rect x="138" y="42" width="6" height="12" fill="#053d1c"/>
+          <rect x="84" y="54" width="42" height="6" fill="#1db854"/>
+          <rect x="66" y="60" width="18" height="6" fill="#0d6b30"/>
+          <rect x="84" y="60" width="48" height="6" fill="#1db854"/>
+          <rect x="132" y="60" width="36" height="6" fill="#0d6b30"/>
+          <rect x="60" y="66" width="24" height="12" fill="#0d6b30"/>
+          <rect x="84" y="66" width="48" height="12" fill="#1db854"/>
+          <rect x="132" y="66" width="42" height="12" fill="#0d6b30"/>
+          <rect x="0"  y="78" width="30" height="6" fill="#053d1c"/>
+          <rect x="30" y="78" width="48" height="6" fill="#0d6b30"/>
+          <rect x="78" y="78" width="54" height="6" fill="#1db854"/>
+          <rect x="132" y="78" width="42" height="6" fill="#0d6b30"/>
+          <rect x="0"  y="84" width="138" height="6" fill="#0d6b30"/>
+          <rect x="138" y="84" width="30" height="6" fill="#064018"/>
+          <rect x="0"  y="84" width="138" height="2" fill="#1db854"/>
+          <rect x="0"  y="84" width="6"  height="6" fill="#35ff7a"/>
+          <rect x="12" y="90" width="126" height="6" fill="#053d1c"/>
+          <rect x="138" y="90" width="30" height="6" fill="#064018"/>
+          <rect x="66" y="96"  width="18" height="24" fill="#053d1c"/>
+          <rect x="84" y="96"  width="48" height="6"  fill="#1db854"/>
+          <rect x="132" y="96" width="42" height="6"  fill="#0d6b30"/>
+          <rect x="84" y="102" width="48" height="12" fill="#1db854"/>
+          <rect x="132" y="102" width="42" height="12" fill="#0d6b30"/>
+          <rect x="66" y="114" width="90" height="6" fill="#021a0a"/>
+          <rect x="108" y="115" width="6"  height="4" fill="#1db854"/>
+          <rect x="66" y="120" width="24" height="12" fill="#0d6b30"/>
+          <rect x="90" y="120" width="36" height="12" fill="#1db854"/>
+          <rect x="126" y="120" width="30" height="12" fill="#0d6b30"/>
+          <rect x="66" y="132" width="12" height="6" fill="#0d6b30"/>
+          <rect x="78" y="132" width="60" height="6" fill="#1db854"/>
+          <rect x="138" y="132" width="12" height="6" fill="#0d6b30"/>
+          <rect x="66" y="138" width="12" height="30" fill="#0d6b30"/>
+          <rect x="78" y="138" width="24" height="30" fill="#1db854"/>
+          <rect x="108" y="138" width="30" height="30" fill="#1db854"/>
+          <rect x="138" y="138" width="12" height="30" fill="#0d6b30"/>
+          <rect x="66" y="168" width="6"  height="18" fill="#053d1c"/>
+          <rect x="72" y="168" width="12" height="18" fill="#0d6b30"/>
+          <rect x="84" y="168" width="12" height="18" fill="#1db854"/>
+          <rect x="108" y="168" width="24" height="18" fill="#1db854"/>
+          <rect x="132" y="168" width="12" height="18" fill="#0d6b30"/>
+          <rect x="144" y="168" width="6"  height="18" fill="#053d1c"/>
+          <rect x="60" y="186" width="6"  height="6" fill="#053d1c"/>
+          <rect x="66" y="186" width="18" height="6" fill="#0d6b30"/>
+          <rect x="84" y="186" width="12" height="6" fill="#1db854"/>
+          <rect x="108" y="186" width="24" height="6" fill="#1db854"/>
+          <rect x="132" y="186" width="18" height="6" fill="#0d6b30"/>
+          <rect x="150" y="186" width="6"  height="6" fill="#053d1c"/>
+          <rect x="60" y="192" width="36" height="6" fill="#021a0a"/>
+          <rect x="108" y="192" width="48" height="6" fill="#021a0a"/>
+          <rect x="138" y="60" width="6" height="66" fill="#064018"/>
+        </g>
+      </svg>
+    </div>
+    <div class="desc">At header widget scale (~60px tall)</div>
+  </div>
+
+</div>
+
+</body>
+</html>

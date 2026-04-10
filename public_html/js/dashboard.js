@@ -356,6 +356,67 @@ function renderSourceHealth() {
   `;
 }
 
+// ── Commander Widget ────────────────────────────────────
+
+const COMMANDER_PHRASES = [
+  'STAY FROSTY, SOLDIER.',
+  'EYES ON THE INTEL.',
+  'MISSION STATUS: NOMINAL.',
+  'MAINTAIN YOUR PERIMETER.',
+  'INTEL IS YOUR WEAPON.',
+  'CHECK YOUR SIX.',
+  'RADIO SILENCE UNTIL FURTHER ORDERS.',
+  'THE SITUATION IS FLUID.',
+  'SECURE THE OBJECTIVE.',
+  'MOVE WITH PURPOSE.',
+  'TRUST THE SIGNAL.',
+  'CONFIRMED ON MULTIPLE FRONTS.',
+  'STAND BY FOR FURTHER INTEL.',
+  'RECON IN PROGRESS.',
+  'SOURCES ARE CREDIBLE.',
+  'EXECUTE WITH PRECISION.',
+  'NO STONE UNTURNED.',
+  'MAINTAIN OPERATIONAL TEMPO.',
+  'AWAITING CONFIRMATION.',
+  'SIGNAL ACQUIRED.',
+  'BOOTS ON THE GROUND.',
+  'ALL UNITS, REPORT IN.',
+  'KEEP YOUR POWDER DRY.',
+  'INTEL NEVER SLEEPS.',
+  'OVER AND OUT.',
+  'COPY THAT, PROCEEDING.',
+  'ESTABLISH A DEFENSIVE LINE.',
+  'ENGAGE AT WILL.',
+  'THE OBJECTIVE IS IN SIGHT.',
+  'DO NOT BREAK FORMATION.',
+  'HOLD YOUR POSITION.',
+  'REMEMBER YOUR TRAINING.',
+  'MOVE OUT ON MY MARK.',
+  'WE LEAVE NO SOURCE BEHIND.',
+  'SITUATIONAL AWARENESS IS KEY.',
+];
+
+let _lastPhraseIdx = -1;
+
+function rotateCommanderPhrase() {
+  const el = document.getElementById('commander-text');
+  if (!el) return;
+  el.style.opacity = '0';
+  setTimeout(() => {
+    let idx;
+    do { idx = Math.floor(Math.random() * COMMANDER_PHRASES.length); }
+    while (idx === _lastPhraseIdx);
+    _lastPhraseIdx = idx;
+    el.textContent = COMMANDER_PHRASES[idx];
+    el.style.opacity = '1';
+  }, 280);
+}
+
+function startCommanderCycle() {
+  rotateCommanderPhrase();
+  setInterval(rotateCommanderPhrase, 5000);
+}
+
 // ── Filter Bar Render ───────────────────────────────────
 
 function renderFilterBar() {
@@ -424,6 +485,29 @@ const COLOR_THEMES = {
   amber:  { accent: '#fbbf24', deep: '#92400e' },
 };
 
+// Soldier filter: maps greyscale → theme color
+// slope  = accent_channel - dark_channel
+// intercept = dark_channel
+const SOLDIER_FILTERS = {
+  green:  { r:[0.200,0.008], g:[0.898,0.102], b:[0.439,0.039] },
+  white:  { r:[0.835,0.051], g:[0.859,0.051], b:[0.835,0.051] },
+  purple: { r:[0.651,0.102], g:[0.479,0.039], b:[0.808,0.180] },
+  indigo: { r:[0.467,0.039], g:[0.506,0.043], b:[0.855,0.118] },
+  blue:   { r:[0.212,0.008], g:[0.659,0.082], b:[0.848,0.125] },
+  amber:  { r:[0.882,0.102], g:[0.694,0.055], b:[0.133,0.008] },
+};
+
+function applySoldierFilter(name) {
+  const d = SOLDIER_FILTERS[name] || SOLDIER_FILTERS.green;
+  const r = document.getElementById('sol-r');
+  const g = document.getElementById('sol-g');
+  const b = document.getElementById('sol-b');
+  if (!r || !g || !b) return;
+  r.setAttribute('slope', d.r[0]); r.setAttribute('intercept', d.r[1]);
+  g.setAttribute('slope', d.g[0]); g.setAttribute('intercept', d.g[1]);
+  b.setAttribute('slope', d.b[0]); b.setAttribute('intercept', d.b[1]);
+}
+
 function applyTheme(name) {
   const t = COLOR_THEMES[name] || COLOR_THEMES.green;
   document.documentElement.style.setProperty('--color-green', t.accent);
@@ -432,6 +516,7 @@ function applyTheme(name) {
   document.querySelectorAll('.color-swatch').forEach(el => {
     el.classList.toggle('selected', el.dataset.theme === name);
   });
+  applySoldierFilter(name);
 }
 
 function loadSavedTheme() {
@@ -669,6 +754,9 @@ async function refresh() {
 document.addEventListener('DOMContentLoaded', async () => {
   // Apply saved color theme before first render
   loadSavedTheme();
+
+  // Start commander phrase cycle
+  startCommanderCycle();
 
   // Set filter bar sticky offset to sit just below the header
   const setFilterTop = () => {

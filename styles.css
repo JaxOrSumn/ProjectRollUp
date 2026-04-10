@@ -15,3 +15,40 @@ button,input,select{font:inherit} button{cursor:pointer}
 @media (prefers-reduced-motion:reduce){.globeRing::after,.orbit,.marker{animation:none}.storyCard{transition:none}}
 @media (max-width: 1100px){.mainGrid{grid-template-columns:1fr}.detailPanel{position:static}.toolbar{grid-template-columns:1fr 170px 150px auto}.toolbarNote{grid-column:1/-1}.storyList{grid-template-columns:repeat(auto-fill,minmax(250px,1fr))}}
 @media (max-width: 767px){.globeWidget{display:none !important}.toolbar{grid-template-columns:1fr 1fr}.storyList{grid-template-columns:1fr}.siteTitle{font-size:24px}}
+
+/* ── Tab navigation ─────────────────────────────────────────────────────────── */
+.tabNav{display:flex;gap:0;border:1px solid var(--line);background:var(--panel);overflow:hidden}
+.tabBtn{flex:1;padding:10px 18px;background:transparent;border:none;border-right:1px solid var(--line);color:var(--muted);font:inherit;font-size:13px;letter-spacing:.1em;cursor:pointer;transition:background .12s,color .12s}
+.tabBtn:last-child{border-right:none}
+.tabBtn:hover{background:rgba(0,255,102,.07);color:var(--fg)}
+.tabBtn.active{background:rgba(0,255,102,.12);color:var(--fg);font-weight:600}
+
+/* ── Trends panel ───────────────────────────────────────────────────────────── */
+.trendsToolbar{grid-template-columns:170px 160px auto auto 1fr}
+.trendsPanel{border:1px solid var(--line);background:var(--panel);padding:14px;display:flex;flex-direction:column;gap:12px}
+.trendsHeader{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px}
+.trendList{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;padding-top:12px}
+.trendCard{padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--panel);display:flex;flex-direction:column;gap:10px;transition:transform .12s,background .12s,border-color .12s}
+.trendCard:hover{transform:translateY(-1px);background:rgba(0,255,102,.07)}
+.trendCardTop{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap}
+.trendCats{display:flex;gap:6px;flex-wrap:wrap}
+.velocityBadge{font-size:11px;padding:3px 9px;border-radius:999px;border:1px solid;white-space:nowrap;font-weight:600;letter-spacing:.08em}
+.vel-ACCELERATING{color:#00ff66;border-color:rgba(0,255,102,.5);background:rgba(0,255,102,.1)}
+.vel-PEAKING{color:#aaff44;border-color:rgba(170,255,68,.4);background:rgba(170,255,68,.07)}
+.vel-STEADY{color:var(--muted);border-color:rgba(141,255,181,.25);background:transparent}
+.vel-FADING{color:rgba(141,255,181,.5);border-color:rgba(141,255,181,.18);background:transparent}
+.trendCardTitle{margin:0;font-size:15px;line-height:1.45;color:var(--text)}
+.trendPlatforms{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12px}
+.platformLabel{color:var(--muted)}
+.platformBadge{font-size:11px;padding:3px 8px;border-radius:6px;border:1px solid;font-weight:600;letter-spacing:.06em}
+.pb-hackernews{color:#ff6600;border-color:rgba(255,102,0,.35);background:rgba(255,102,0,.07)}
+.pb-reddit{color:#ff8c66;border-color:rgba(255,140,102,.35);background:rgba(255,140,102,.07)}
+.pb-googletrends{color:#66ddff;border-color:rgba(102,221,255,.35);background:rgba(102,221,255,.07)}
+.trendSub{font-size:11px;color:var(--muted);padding:2px 6px;border:1px solid rgba(141,255,181,.18);border-radius:5px}
+.trendCardMeta{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--muted)}
+.trendCardFooter{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;margin-top:2px}
+.trendLink{color:var(--muted);text-decoration:none}
+.trendLink:hover{color:var(--fg);text-decoration:underline}
+.trendFeedBtn{font-size:11px;padding:4px 10px;min-height:unset}
+
+@media (max-width:767px){.trendsToolbar{grid-template-columns:1fr 1fr}.trendList{grid-template-columns:1fr}}

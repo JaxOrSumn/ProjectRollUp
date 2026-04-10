@@ -23,6 +23,37 @@
       <!-- Task 5: Re-open welcome popup button -->
       <button class="btn btn-ghost btn-xs" onclick="reopenWelcome()" title="About this dashboard" style="margin-top:4px;width:fit-content;">?</button>
     </div>
+    <!-- ── Commander Widget ──────────────────────────── -->
+    <div class="commander-widget" id="commander-widget">
+      <div class="commander-figure">
+        <svg class="commander-svg" width="72" height="77" viewBox="0 0 72 77" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+          <defs>
+            <filter id="crt-soldier" color-interpolation-filters="sRGB" x="0%" y="0%" width="100%" height="100%">
+              <feColorMatrix type="saturate" values="0" result="grey"/>
+              <feComponentTransfer in="grey" result="recolored">
+                <feFuncR id="sol-r" type="linear" slope="0.200" intercept="0.008"/>
+                <feFuncG id="sol-g" type="linear" slope="0.898" intercept="0.102"/>
+                <feFuncB id="sol-b" type="linear" slope="0.439" intercept="0.039"/>
+              </feComponentTransfer>
+              <feGaussianBlur in="recolored" stdDeviation="1.2" result="glow"/>
+              <feMerge>
+                <feMergeNode in="glow"/>
+                <feMergeNode in="recolored"/>
+              </feMerge>
+            </filter>
+          </defs>
+          <image href="assets/soldier.jpg" x="0" y="0" width="72" height="77"
+                 preserveAspectRatio="xMidYMid meet"
+                 filter="url(#crt-soldier)"
+                 style="image-rendering:pixelated;image-rendering:crisp-edges;"/>
+        </svg>
+      </div>
+      <div class="commander-bubble">
+        <div class="commander-label">FIELD COMMANDER</div>
+        <span class="commander-text" id="commander-text">AWAITING ORDERS...</span>
+      </div>
+    </div>
+
     <div class="header-right">
       <div class="mission-status">
         <span class="live-dot" id="status-dot"></span>

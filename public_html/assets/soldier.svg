@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 204" style="image-rendering:pixelated;image-rendering:crisp-edges;">
+  <defs>
+    <filter id="gs" x="-25%" y="-25%" width="150%" height="150%">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <g filter="url(#gs)">
+    <!-- HELMET top -->
+    <rect x="84" y="0"  width="54" height="6" fill="#053d1c"/>
+    <rect x="78" y="6"  width="66" height="6" fill="#053d1c"/>
+    <rect x="72" y="12" width="12" height="6" fill="#053d1c"/>
+    <rect x="84" y="12" width="54" height="6" fill="#0d6b30"/>
+    <rect x="138" y="12" width="12" height="6" fill="#053d1c"/>
+    <!-- HELMET face bright -->
+    <rect x="72" y="18" width="6"  height="6" fill="#053d1c"/>
+    <rect x="78" y="18" width="6"  height="6" fill="#0d6b30"/>
+    <rect x="84" y="18" width="48" height="6" fill="#35ff7a"/>
+    <rect x="132" y="18" width="6" height="6" fill="#0d6b30"/>
+    <rect x="138" y="18" width="12" height="6" fill="#053d1c"/>
+    <rect x="90" y="18" width="6"  height="6" fill="#9fffbc"/>
+    <rect x="72" y="24" width="6"  height="6" fill="#053d1c"/>
+    <rect x="78" y="24" width="6"  height="6" fill="#0d6b30"/>
+    <rect x="84" y="24" width="48" height="6" fill="#35ff7a"/>
+    <rect x="132" y="24" width="6" height="6" fill="#0d6b30"/>
+    <rect x="138" y="24" width="12" height="6" fill="#053d1c"/>
+    <!-- VISOR -->
+    <rect x="72" y="30" width="6"  height="6" fill="#053d1c"/>
+    <rect x="78" y="30" width="6"  height="6" fill="#0d6b30"/>
+    <rect x="84" y="30" width="48" height="6" fill="#010a04"/>
+    <rect x="132" y="30" width="6" height="6" fill="#0d6b30"/>
+    <rect x="138" y="30" width="12" height="6" fill="#053d1c"/>
+    <rect x="96" y="31" width="8"  height="3" fill="#0d3d1c"/>
+    <!-- HELMET brim -->
+    <rect x="78" y="36" width="66" height="6" fill="#053d1c"/>
+    <!-- FACE -->
+    <rect x="84" y="42" width="54" height="12" fill="#1db854"/>
+    <rect x="78" y="42" width="6"  height="12" fill="#053d1c"/>
+    <rect x="138" y="42" width="6" height="12" fill="#053d1c"/>
+    <!-- NECK -->
+    <rect x="84" y="54" width="42" height="6" fill="#1db854"/>
+    <!-- SHOULDERS -->
+    <rect x="66" y="60" width="18" height="6" fill="#0d6b30"/>
+    <rect x="84" y="60" width="48" height="6" fill="#1db854"/>
+    <rect x="132" y="60" width="36" height="6" fill="#0d6b30"/>
+    <rect x="66" y="60" width="18" height="3" fill="#0a5020"/>
+    <!-- UPPER CHEST + BACKPACK -->
+    <rect x="60" y="66" width="24" height="12" fill="#0d6b30"/>
+    <rect x="84" y="66" width="48" height="12" fill="#1db854"/>
+    <rect x="132" y="66" width="42" height="12" fill="#0d6b30"/>
+    <rect x="138" y="60" width="6"  height="66" fill="#064018"/>
+    <rect x="168" y="66" width="6"  height="60" fill="#0a5020"/>
+    <!-- RIFLE STOCK + ARM -->
+    <rect x="0"  y="78" width="30" height="6" fill="#053d1c"/>
+    <rect x="30" y="78" width="48" height="6" fill="#0d6b30"/>
+    <rect x="78" y="78" width="54" height="6" fill="#1db854"/>
+    <rect x="132" y="78" width="42" height="6" fill="#0d6b30"/>
+    <rect x="0"  y="78" width="30" height="2" fill="#0a5020"/>
+    <!-- RIFLE BARREL -->
+    <rect x="0"  y="84" width="138" height="6" fill="#0d6b30"/>
+    <rect x="138" y="84" width="30" height="6" fill="#064018"/>
+    <rect x="0"  y="84" width="138" height="2" fill="#1db854"/>
+    <rect x="0"  y="84" width="6"  height="6" fill="#35ff7a"/>
+    <rect x="12" y="90" width="126" height="6" fill="#053d1c"/>
+    <rect x="138" y="90" width="30" height="6" fill="#064018"/>
+    <!-- TRIGGER / MAGAZINE -->
+    <rect x="72" y="78" width="6"  height="18" fill="#021a0a"/>
+    <rect x="66" y="96" width="18" height="24" fill="#053d1c"/>
+    <rect x="66" y="96" width="4"  height="24" fill="#0a5020"/>
+    <!-- TACTICAL VEST -->
+    <rect x="60" y="96"  width="6"  height="6"  fill="#0d6b30"/>
+    <rect x="84" y="96"  width="48" height="6"  fill="#1db854"/>
+    <rect x="132" y="96" width="42" height="6"  fill="#0d6b30"/>
+    <rect x="60" y="102" width="6"  height="12" fill="#0d6b30"/>
+    <rect x="84" y="102" width="48" height="12" fill="#1db854"/>
+    <rect x="132" y="102" width="42" height="12" fill="#0d6b30"/>
+    <rect x="84"  y="102" width="3" height="12" fill="#0a5020"/>
+    <rect x="102" y="102" width="3" height="12" fill="#0a5020"/>
+    <rect x="120" y="102" width="3" height="12" fill="#0a5020"/>
+    <!-- BELT -->
+    <rect x="66" y="114" width="90" height="6" fill="#021a0a"/>
+    <rect x="105" y="114" width="12" height="6" fill="#0d6b30"/>
+    <rect x="108" y="115" width="6"  height="4" fill="#1db854"/>
+    <!-- HIPS -->
+    <rect x="66" y="120" width="24" height="12" fill="#0d6b30"/>
+    <rect x="90" y="120" width="36" height="12" fill="#1db854"/>
+    <rect x="126" y="120" width="30" height="12" fill="#0d6b30"/>
+    <!-- UPPER LEGS together -->
+    <rect x="66" y="132" width="12" height="6" fill="#0d6b30"/>
+    <rect x="78" y="132" width="60" height="6" fill="#1db854"/>
+    <rect x="138" y="132" width="12" height="6" fill="#0d6b30"/>
+    <!-- LEGS SPLIT -->
+    <rect x="66" y="138" width="12" height="30" fill="#0d6b30"/>
+    <rect x="78" y="138" width="24" height="30" fill="#1db854"/>
+    <rect x="108" y="138" width="30" height="30" fill="#1db854"/>
+    <rect x="138" y="138" width="12" height="30" fill="#0d6b30"/>
+    <rect x="90"  y="138" width="3"  height="30" fill="#0a5020"/>
+    <rect x="126" y="138" width="3"  height="30" fill="#0a5020"/>
+    <!-- LOWER LEGS -->
+    <rect x="66" y="168" width="6"  height="18" fill="#053d1c"/>
+    <rect x="72" y="168" width="12" height="18" fill="#0d6b30"/>
+    <rect x="84" y="168" width="12" height="18" fill="#1db854"/>
+    <rect x="108" y="168" width="24" height="18" fill="#1db854"/>
+    <rect x="132" y="168" width="12" height="18" fill="#0d6b30"/>
+    <rect x="144" y="168" width="6"  height="18" fill="#053d1c"/>
+    <!-- BOOTS -->
+    <rect x="60" y="186" width="6"  height="6" fill="#053d1c"/>
+    <rect x="66" y="186" width="18" height="6" fill="#0d6b30"/>
+    <rect x="84" y="186" width="12" height="6" fill="#1db854"/>
+    <rect x="108" y="186" width="24" height="6" fill="#1db854"/>
+    <rect x="132" y="186" width="18" height="6" fill="#0d6b30"/>
+    <rect x="150" y="186" width="6"  height="6" fill="#053d1c"/>
+    <rect x="60" y="192" width="36" height="6" fill="#021a0a"/>
+    <rect x="108" y="192" width="48" height="6" fill="#021a0a"/>
+    <rect x="54" y="192" width="6"  height="6" fill="#021a0a"/>
+    <rect x="156" y="192" width="6" height="6" fill="#021a0a"/>
+    <!-- BACKPACK DETAIL -->
+    <rect x="144" y="66" width="24" height="60" fill="#064018"/>
+    <rect x="162" y="72" width="6"  height="48" fill="#0a5020"/>
+  </g>
+</svg>

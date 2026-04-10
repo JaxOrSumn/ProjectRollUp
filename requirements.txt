@@ -7,3 +7,4 @@ python-dateutil
 rapidfuzz
 sqlite-utils
 jinja2
+pytrends

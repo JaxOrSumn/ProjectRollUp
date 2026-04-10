@@ -404,7 +404,166 @@ function initGlobeFallback() {
   if (window.matchMedia('(max-width: 767px)').matches) return;
   els.globeWidget.classList.add('visible');
 }
+// ── Trends ────────────────────────────────────────────────────────────────────
+
+let trendsData = [];
+let trendsLoaded = false;
+let trendCategoryFilter = 'all';
+let trendVelocityFilter = 'all';
+
+const VELOCITY_LABELS = {
+  ACCELERATING: '↑ RISING',
+  PEAKING:      '→ PEAKING',
+  STEADY:       '· STEADY',
+  FADING:       '↓ FADING',
+};
+
+const PLATFORM_SHORT = {
+  'HackerNews':    'HN',
+  'Reddit':        'Reddit',
+  'Google Trends': 'Google',
+};
+
+function trendAge(minutes) {
+  if (minutes <= 0) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1440) return `${Math.floor(minutes / 60)}h ago`;
+  return `${Math.floor(minutes / 1440)}d ago`;
+}
+
+function filteredTrends() {
+  return trendsData.filter(t => {
+    if (trendCategoryFilter !== 'all' && !t.categories.includes(trendCategoryFilter)) return false;
+    if (trendVelocityFilter !== 'all' && t.velocity !== trendVelocityFilter) return false;
+    return true;
+  });
+}
+
+function countRelatedStories(topic) {
+  if (!items.length) return 0;
+  const q = norm(topic);
+  return items.filter(s => norm([s.headline, s.summary].join(' ')).includes(q.split(' ')[0])).length;
+}
+
+function renderTrends() {
+  const list = filteredTrends();
+  const trendList = document.getElementById('trendList');
+  const trendCount = document.getElementById('trendCount');
+  trendCount.textContent = `${list.length} trend${list.length !== 1 ? 's' : ''}`;
+
+  if (!list.length) {
+    trendList.innerHTML = `<div class='loadState'>${trendsLoaded ? 'No trends match the current filters.' : 'Loading trends…'}</div>`;
+    return;
+  }
+
+  trendList.innerHTML = list.map((t, i) => {
+    const velLabel = VELOCITY_LABELS[t.velocity] || t.velocity;
+    const platforms = t.platforms.map(p =>
+      `<span class='platformBadge pb-${(p.replace(/\s/g, '')).toLowerCase()}'>${htmlesc(PLATFORM_SHORT[p] || p)}</span>`
+    ).join('');
+    const cats = (t.categories || []).map(c => `<span class='chip'>${htmlesc(c)}</span>`).join('');
+    const related = countRelatedStories(t.topic);
+    const relatedBtn = related > 0
+      ? `<button class='btnGhost trendFeedBtn' data-topic='${htmlesc(t.topic)}' type='button'>${related} stor${related === 1 ? 'y' : 'ies'} in feed →</button>`
+      : '';
+    const subreddit = t.subreddit ? `<span class='trendSub'>${htmlesc(t.subreddit)}</span>` : '';
+    return `
+      <article class='trendCard' data-index='${i}'>
+        <div class='trendCardTop'>
+          <span class='velocityBadge vel-${t.velocity}'>${htmlesc(velLabel)}</span>
+          <div class='trendCats'>${cats}</div>
+        </div>
+        <h3 class='trendCardTitle'>${htmlesc(t.topic)}</h3>
+        <div class='trendPlatforms'><span class='platformLabel'>Spotted on:</span> ${platforms} ${subreddit}</div>
+        <div class='trendCardMeta'>
+          <span>${htmlesc(trendAge(t.age_minutes))}</span>
+          ${t.signals ? `<span>${t.signals.toLocaleString()} signals</span>` : ''}
+          <span>${t.cross_platform_count}/${t.cross_platform_count >= 3 ? 3 : t.cross_platform_count} platform${t.cross_platform_count !== 1 ? 's' : ''}</span>
+        </div>
+        <div class='trendCardFooter'>
+          <a class='trendLink' href='${htmlesc(t.url)}' target='_blank' rel='noopener noreferrer'>View on ${htmlesc(t.primary_platform)} →</a>
+          ${relatedBtn}
+        </div>
+      </article>`;
+  }).join('');
+}
+
+function fetchTrends() {
+  const trendList = document.getElementById('trendList');
+  const trendSources = document.getElementById('trendSources');
+  trendList.innerHTML = `<div class='loadState'>Fetching trends…</div>`;
+  fetch(`${API_BASE}/api/trends`)
+    .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json(); })
+    .then(data => {
+      trendsData = data.trends || [];
+      trendsLoaded = true;
+      const asOf = document.getElementById('trendAsOf');
+      if (asOf && data.as_of) {
+        asOf.textContent = `Last updated: ${new Date(data.as_of).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+      }
+      if (trendSources && data.sources) {
+        trendSources.textContent = `Sources: ${data.sources.join(', ')}`;
+      }
+      renderTrends();
+    })
+    .catch(err => {
+      trendList.innerHTML = `<div class='loadState'>Could not load trends: ${htmlesc(err.message)}</div>`;
+    });
+}
+
+function seedTrendsUI() {
+  document.getElementById('trendRefreshBtn')?.addEventListener('click', fetchTrends);
+  document.getElementById('trendCategoryFilter')?.addEventListener('change', e => {
+    trendCategoryFilter = e.target.value;
+    renderTrends();
+  });
+  document.getElementById('trendVelocityFilter')?.addEventListener('change', e => {
+    trendVelocityFilter = e.target.value;
+    renderTrends();
+  });
+  document.getElementById('trendList')?.addEventListener('click', e => {
+    const btn = e.target.closest('.trendFeedBtn');
+    if (!btn) return;
+    const topic = btn.dataset.topic || '';
+    // Switch to news tab and pre-fill search
+    switchTab('news');
+    const si = document.getElementById('searchInput');
+    if (si) {
+      si.value = topic.split(' ').slice(0, 3).join(' ');
+      query = si.value;
+      applySortAndFilter();
+    }
+  });
+}
+
+function switchTab(tab) {
+  const newsView = document.getElementById('newsView');
+  const trendsView = document.getElementById('trendsView');
+  const tabNews = document.getElementById('tabNews');
+  const tabTrends = document.getElementById('tabTrends');
+  if (tab === 'trends') {
+    newsView.hidden = true;
+    trendsView.hidden = false;
+    tabNews.classList.remove('active');
+    tabTrends.classList.add('active');
+    if (!trendsLoaded) fetchTrends();
+  } else {
+    trendsView.hidden = true;
+    newsView.hidden = false;
+    tabTrends.classList.remove('active');
+    tabNews.classList.add('active');
+  }
+}
+
+function seedTabNav() {
+  document.getElementById('tabNews')?.addEventListener('click', () => switchTab('news'));
+  document.getElementById('tabTrends')?.addEventListener('click', () => switchTab('trends'));
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
 seedUI();
 initGlobeFallback();
+seedTabNav();
+seedTrendsUI();
 fetchStories();
 setInterval(() => { page = 1; visibleCount = STAY_VISIBLE; fetchStories(); }, 300000);
