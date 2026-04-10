@@ -1205,15 +1205,27 @@ async def api_refresh():
 
 @app.get('/api/trends')
 async def api_trends():
-    """Return cached internet trends. Fetches on demand if cache is empty."""
+    """Return cached internet trends. Fetches on demand if cache is empty or stale."""
     trends, fetched_at = _load_trends()
-    if not trends:
+
+    # Refresh if empty OR cache is older than the refresh interval
+    needs_refresh = not trends
+    if not needs_refresh and fetched_at:
+        try:
+            age_secs = (datetime.now(timezone.utc) - dtparser.parse(fetched_at)).total_seconds()
+            if age_secs > TRENDS_REFRESH_INTERVAL:
+                needs_refresh = True
+        except Exception:
+            pass
+
+    if needs_refresh:
         try:
             trends = await refresh_trends_async()
             _, fetched_at = _load_trends()
         except Exception:
-            trends = []
-            fetched_at = None
+            if not trends:
+                trends = []
+                fetched_at = None
     active_sources = ['HackerNews', 'Reddit']
     if _PYTRENDS_AVAILABLE:
         active_sources.append('Google Trends')
