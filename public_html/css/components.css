@@ -1017,13 +1017,45 @@
   line-height: 1.5;
   color: var(--color-text);
 }
-.trend-sparkline {
-  font-family: var(--font-mono);
-  font-size: 14px;
-  letter-spacing: 1px;
-  color: var(--color-green);
-  margin-top: 6px;
+.popularity-graph-wrap {
+  margin-top: 12px;
+  background: rgba(0,0,0,0.25);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 10px 10px 6px;
+}
+.popularity-graph-label {
   display: block;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1.5px;
+  color: var(--color-green);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.popularity-graph-label .pg-period {
+  color: var(--color-slate);
+  font-size: 8px;
+}
+.popularity-graph {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.pg-axis {
+  stroke: var(--color-border);
+  stroke-width: 1;
+}
+.pg-grid {
+  stroke: var(--color-border);
+  stroke-width: 0.5;
+  stroke-dasharray: 3 3;
+}
+.pg-label {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  fill: var(--color-slate);
 }
 
 @media (max-width: 768px) {

@@ -837,14 +837,62 @@ function clearTrendSearch() {
 }
 
 // Task 26: Sparkline helpers
-function _scoreToBar(score) {
-  const bars = ['▁','▂','▃','▄','▅','▆','▇','█'];
-  return bars[Math.min(7, Math.floor((score || 0) * 8))];
-}
-
-function buildSparkline(history) {
+function buildPopularityGraph(history) {
   if (!history || !history.length) return '';
-  return history.map(h => _scoreToBar(h.composite_score)).join('');
+
+  const W = 400, H = 72, PAD = { top: 6, right: 8, bottom: 20, left: 32 };
+  const innerW = W - PAD.left - PAD.right;
+  const innerH = H - PAD.top - PAD.bottom;
+
+  const scores = history.map(h => h.composite_score || 0);
+  const maxScore = Math.max(...scores, 0.01);
+  const pts = scores.map((s, i) => {
+    const x = PAD.left + (i / Math.max(scores.length - 1, 1)) * innerW;
+    const y = PAD.top + innerH - (s / maxScore) * innerH;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+
+  // Build filled area path
+  const linePoints = pts.join(' ');
+  const firstX = PAD.left.toFixed(1);
+  const lastX  = (PAD.left + innerW).toFixed(1);
+  const baseY  = (PAD.top + innerH).toFixed(1);
+  const areaPath = `M${firstX},${baseY} L${pts[0]} L${pts.slice(1).join(' L')} L${lastX},${baseY} Z`;
+
+  // X-axis time labels: show first and last
+  const timeLabels = history.length >= 2 ? `
+    <text x="${PAD.left}" y="${H - 4}" class="pg-label">${escapeHtml(history[0].recorded_at ? history[0].recorded_at.slice(11,16) : '')}</text>
+    <text x="${PAD.left + innerW}" y="${H - 4}" text-anchor="end" class="pg-label">${escapeHtml(history[history.length-1].recorded_at ? history[history.length-1].recorded_at.slice(11,16) : 'now')}</text>
+  ` : '';
+
+  // Y-axis: 0 and peak labels
+  const yLabels = `
+    <text x="${PAD.left - 4}" y="${PAD.top + innerH}" text-anchor="end" class="pg-label">0</text>
+    <text x="${PAD.left - 4}" y="${PAD.top + 4}" text-anchor="end" class="pg-label">${maxScore.toFixed(2)}</text>
+  `;
+
+  return `
+    <svg class="popularity-graph" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" aria-label="Popularity trend over 48h">
+      <defs>
+        <linearGradient id="pgGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="var(--color-green)" stop-opacity="0.45"/>
+          <stop offset="100%" stop-color="var(--color-green)" stop-opacity="0.03"/>
+        </linearGradient>
+      </defs>
+      <!-- Grid lines -->
+      <line x1="${PAD.left}" y1="${PAD.top}" x2="${PAD.left}" y2="${PAD.top + innerH}" class="pg-axis"/>
+      <line x1="${PAD.left}" y1="${PAD.top + innerH}" x2="${PAD.left + innerW}" y2="${PAD.top + innerH}" class="pg-axis"/>
+      <line x1="${PAD.left}" y1="${PAD.top + innerH / 2}" x2="${PAD.left + innerW}" y2="${PAD.top + innerH / 2}" class="pg-grid"/>
+      <!-- Filled area -->
+      <path d="${areaPath}" fill="url(#pgGrad)"/>
+      <!-- Line -->
+      <polyline points="${linePoints}" fill="none" stroke="var(--color-green)" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>
+      <!-- Dot at latest value -->
+      <circle cx="${(PAD.left + innerW).toFixed(1)}" cy="${pts[pts.length-1].split(',')[1]}" r="3" fill="var(--color-green)"/>
+      ${yLabels}
+      ${timeLabels}
+    </svg>
+  `;
 }
 
 // Task 20: Toggle trend summary panel
@@ -868,8 +916,8 @@ async function toggleTrendSummary(topic, cardEl) {
     ]);
     const sumData  = await sumRes.json();
     const histData = await histRes.json();
-    const sparkline = buildSparkline(histData.history || []);
-    const payload = { summary: sumData.summary || '', sparkline };
+    const graph = buildPopularityGraph(histData.history || []);
+    const payload = { summary: sumData.summary || '', graph };
     trendSummaryCache[topic] = payload;
     box.innerHTML = renderTrendSummaryHTML(payload);
   } catch (err) {
@@ -877,11 +925,15 @@ async function toggleTrendSummary(topic, cardEl) {
   }
 }
 
-function renderTrendSummaryHTML({ summary, sparkline }) {
+function renderTrendSummaryHTML({ summary, graph }) {
   return `
     <div class="trend-summary-text">${escapeHtml(summary)}</div>
-    ${sparkline ? `<div class="trend-sparkline" title="Score trend (48h)">${escapeHtml(sparkline)}</div>` : ''}
-    <button class="btn btn-ghost btn-xs" style="margin-top:6px;font-size:8px;" onclick="this.closest('.trend-summary-box').remove()">CLOSE SUMMARY</button>
+    ${graph ? `
+      <div class="popularity-graph-wrap">
+        <span class="popularity-graph-label">POPULARITY GRAPH <span class="pg-period">48h</span></span>
+        ${graph}
+      </div>` : ''}
+    <button class="btn btn-ghost btn-xs" style="margin-top:8px;font-size:8px;" onclick="this.closest('.trend-summary-box').remove()">CLOSE SUMMARY</button>
   `;
 }
 
@@ -944,7 +996,7 @@ function renderTrends() {
       ? `<a class="trend-link" href="${escapeHtml(validUrl)}" target="_blank" rel="noopener noreferrer">VIEW ON ${escapeHtml((t.primary_platform || '').toUpperCase())} →</a>`
       : '';
     return `
-      <div class="trend-card" id="trend-card-${idx}" onclick="toggleTrendSummary(${JSON.stringify(t.topic)}, this)">
+      <div class="trend-card" id="trend-card-${idx}" data-topic="${escapeHtml(t.topic)}" onclick="toggleTrendSummary(this.dataset.topic, this)">
         <div class="trend-card-top">
           <span class="vel-badge vel-${escapeHtml(t.velocity)}">${escapeHtml(VEL_LABELS[t.velocity] || t.velocity)}</span>
           <div style="display:flex;gap:4px;flex-wrap:wrap;">${cats}</div>
