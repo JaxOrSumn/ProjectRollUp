@@ -10,6 +10,8 @@ from html import unescape
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
+import os
+
 import feedparser
 import httpx
 from dateutil import parser as dtparser
@@ -167,6 +169,14 @@ _DIGEST_PATTERN = re.compile(
     re.I
 )
 
+# ── Ad / promotional content filter (Task 21) ────────────────────────────────
+_AD_PATTERN = re.compile(
+    r'sponsored|partner content|paid post|presented by|buy now|limited time offer|'
+    r'promo code|affiliate|advertisement|best deals|shop now|click to buy|'
+    r'exclusive offer|free trial|sign up today|get \d+% off|use code ',
+    re.I
+)
+
 
 # ── Database ─────────────────────────────────────────────────────────────────
 
@@ -221,6 +231,19 @@ def init_db():
                 fetched_at TEXT NOT NULL
             )"""
         )
+        # Trend history — rolling 48h snapshots for velocity sparklines (Task 26)
+        conn.execute(
+            """CREATE TABLE IF NOT EXISTS trend_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                topic TEXT NOT NULL,
+                platform TEXT NOT NULL,
+                composite_score REAL,
+                velocity TEXT,
+                signals INTEGER,
+                recorded_at TEXT NOT NULL
+            )"""
+        )
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_trend_history ON trend_history(topic, recorded_at)')
         conn.commit()
 
 
@@ -314,7 +337,7 @@ async def _fetch_hn(client: httpx.AsyncClient) -> list:
             out.append({
                 'topic': title,
                 'platform': 'HackerNews',
-                'url': item.get('url') or f'https://news.ycombinator.com/item?id={item["id"]}',
+                'url': f'https://news.ycombinator.com/item?id={item["id"]}',
                 'raw_score': item.get('score', 0),
                 'comments': item.get('descendants', 0),
                 'age_minutes': age_min,
@@ -354,6 +377,219 @@ async def _fetch_reddit(client: httpx.AsyncClient) -> list:
         return []
 
 
+async def _fetch_github(client: httpx.AsyncClient) -> list:
+    """Scrape GitHub Trending — no auth required (Task 22)."""
+    try:
+        res = await client.get(
+            'https://github.com/trending',
+            headers={'Accept': 'text/html', 'User-Agent': 'Mozilla/5.0'},
+            timeout=10.0,
+        )
+        # Extract repo names: owner/repo pattern inside h2 anchors
+        repos = re.findall(r'<h2[^>]*>\s*<a[^>]+href="/([^/"]+/[^/"]+)"', res.text)
+        out = []
+        for i, repo in enumerate(repos[:20]):
+            out.append({
+                'topic': repo.replace('-', ' ').replace('/', ' / '),
+                'platform': 'GitHub',
+                'url': f'https://github.com/{repo}',
+                'raw_score': max(0, 100 - i * 5),
+                'comments': 0,
+                'age_minutes': 0,
+            })
+        return out
+    except Exception:
+        return []
+
+
+async def _fetch_wikipedia(client: httpx.AsyncClient) -> list:
+    """Fetch Wikipedia Current Events portal — no auth required (Task 22)."""
+    try:
+        res = await client.get(
+            'https://en.wikipedia.org/wiki/Portal:Current_events',
+            headers={'User-Agent': 'ProjectRollUp/1.0 (news aggregator; open source)'},
+            timeout=10.0,
+        )
+        # Extract linked article titles from portal
+        titles = re.findall(r'<a[^>]+title="([^"]+)"[^>]*>[^<]{10,}</a>', res.text)
+        seen = set()
+        out = []
+        for i, title in enumerate(titles):
+            t = title.strip()
+            if not t or t in seen or t.startswith('Portal:') or t.startswith('Help:'):
+                continue
+            seen.add(t)
+            out.append({
+                'topic': t,
+                'platform': 'Wikipedia',
+                'url': f'https://en.wikipedia.org/wiki/{t.replace(" ", "_")}',
+                'raw_score': max(0, 80 - i * 4),
+                'comments': 0,
+                'age_minutes': 0,
+            })
+            if len(out) >= 15:
+                break
+        return out
+    except Exception:
+        return []
+
+
+async def _fetch_mastodon(client: httpx.AsyncClient) -> list:
+    """Mastodon trending hashtags — public API, no auth (Task 32)."""
+    try:
+        res = await client.get(
+            'https://mastodon.social/api/v1/trends/tags?limit=20',
+            timeout=10.0,
+        )
+        tags = res.json()
+        out = []
+        for tag in tags:
+            name = tag.get('name', '').replace('_', ' ').strip()
+            if not name:
+                continue
+            history = tag.get('history', [])
+            uses = int(history[0].get('uses', 0)) if history else 0
+            out.append({
+                'topic': name,
+                'platform': 'Mastodon',
+                'url': f'https://mastodon.social/tags/{tag.get("name", "")}',
+                'raw_score': uses,
+                'comments': 0,
+                'age_minutes': 0,
+            })
+        return out
+    except Exception:
+        return []
+
+
+async def _fetch_bluesky(client: httpx.AsyncClient) -> list:
+    """Bluesky AT Protocol trending feed — public, no auth (Task 33)."""
+    try:
+        res = await client.get(
+            'https://public.api.bsky.app/xrpc/app.bsky.feed.getFeed'
+            '?feed=at://did:plc:z72i7hdynmk6r22z27h6tvur/app.bsky.feed.generator/whats-hot&limit=25',
+            timeout=12.0,
+        )
+        feed = res.json().get('feed', [])
+        word_freq: dict[str, int] = {}
+        for item in feed:
+            text = item.get('post', {}).get('record', {}).get('text', '')
+            for word in re.findall(r'\b[A-Z][a-z]{3,}\b', text):
+                word_freq[word] = word_freq.get(word, 0) + 1
+        out = []
+        for word, count in sorted(word_freq.items(), key=lambda x: -x[1])[:12]:
+            if count < 2:
+                continue
+            out.append({
+                'topic': word,
+                'platform': 'Bluesky',
+                'url': f'https://bsky.app/search?q={word}',
+                'raw_score': count * 10,
+                'comments': 0,
+                'age_minutes': 0,
+            })
+        return out
+    except Exception:
+        return []
+
+
+async def _fetch_tiktok(client: httpx.AsyncClient) -> list:
+    """TikTok Creative Center trending — unauthenticated, may change (Task 31)."""
+    try:
+        res = await client.get(
+            'https://ads.tiktok.com/business_site/creative_center/hashtag/pc/en',
+            headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'},
+            timeout=10.0,
+        )
+        # Extract hashtag names from page JSON embedded in script tags
+        names = re.findall(r'"hashtagName"\s*:\s*"([^"]{2,40})"', res.text)
+        if not names:
+            names = re.findall(r'#([A-Za-z][A-Za-z0-9]{2,30})\b', res.text)[:20]
+        seen = set()
+        out = []
+        for i, name in enumerate(names):
+            n = name.strip()
+            if not n or n.lower() in seen:
+                continue
+            seen.add(n.lower())
+            out.append({
+                'topic': n,
+                'platform': 'TikTok',
+                'url': f'https://www.tiktok.com/tag/{n}',
+                'raw_score': max(0, 100 - i * 5),
+                'comments': 0,
+                'age_minutes': 0,
+            })
+            if len(out) >= 15:
+                break
+        return out
+    except Exception:
+        return []
+
+
+async def _fetch_youtube(client: httpx.AsyncClient) -> list:
+    """YouTube Data API v3 trending — requires YOUTUBE_API_KEY env var (Tasks 22, 34)."""
+    key = os.environ.get('YOUTUBE_API_KEY', '')
+    if not key:
+        return []
+    try:
+        res = await client.get(
+            'https://www.googleapis.com/youtube/v3/videos',
+            params={'chart': 'mostPopular', 'regionCode': 'US', 'maxResults': 20, 'part': 'snippet', 'key': key},
+            timeout=10.0,
+        )
+        items = res.json().get('items', [])
+        out = []
+        for i, item in enumerate(items):
+            title = item.get('snippet', {}).get('title', '').strip()
+            if not title:
+                continue
+            channel = item.get('snippet', {}).get('channelTitle', '')
+            vid_id = item.get('id', '')
+            out.append({
+                'topic': title,
+                'platform': 'YouTube',
+                'url': f'https://youtube.com/watch?v={vid_id}' if vid_id else 'https://youtube.com',
+                'raw_score': max(0, 100 - i * 5),
+                'comments': 0,
+                'age_minutes': 0,
+                'subreddit': channel,
+            })
+        return out
+    except Exception:
+        return []
+
+
+async def _fetch_newsapi(client: httpx.AsyncClient) -> list:
+    """NewsAPI top headlines — requires NEWSAPI_KEY env var (Task 22)."""
+    key = os.environ.get('NEWSAPI_KEY', '')
+    if not key:
+        return []
+    try:
+        res = await client.get(
+            'https://newsapi.org/v2/top-headlines',
+            params={'country': 'us', 'pageSize': 20, 'apiKey': key},
+            timeout=10.0,
+        )
+        articles = res.json().get('articles', [])
+        out = []
+        for i, a in enumerate(articles):
+            title = (a.get('title') or '').split(' - ')[0].strip()
+            if not title or title == '[Removed]':
+                continue
+            out.append({
+                'topic': title,
+                'platform': 'NewsAPI',
+                'url': a.get('url', ''),
+                'raw_score': max(0, 100 - i * 5),
+                'comments': 0,
+                'age_minutes': 0,
+            })
+        return out
+    except Exception:
+        return []
+
+
 def _fetch_google_trends_sync() -> list:
     if not _PYTRENDS_AVAILABLE:
         return []
@@ -378,12 +614,12 @@ def _fetch_google_trends_sync() -> list:
         return []
 
 
-def _aggregate_trends(hn: list, reddit: list, google: list) -> list:
-    raw_all = (
-        [{**t, 'sources': ['HackerNews']} for t in hn]
-        + [{**t, 'sources': ['Reddit']} for t in reddit]
-        + [{**t, 'sources': ['Google Trends']} for t in google]
-    )
+def _aggregate_trends(*source_lists) -> list:
+    """Merge any number of platform lists into deduplicated trending topics."""
+    raw_all = []
+    for lst in source_lists:
+        for t in lst:
+            raw_all.append({**t, 'sources': [t.get('platform', 'Unknown')]})
 
     merged: list[dict] = []
     for raw in raw_all:
@@ -455,20 +691,45 @@ def _aggregate_trends(hn: list, reddit: list, google: list) -> list:
 async def refresh_trends_async() -> list:
     global _last_trends_time
     async with httpx.AsyncClient(follow_redirects=True) as client:
-        hn_res, reddit_res = await asyncio.gather(
+        results = await asyncio.gather(
             _fetch_hn(client),
             _fetch_reddit(client),
+            _fetch_github(client),
+            _fetch_wikipedia(client),
+            _fetch_mastodon(client),
+            _fetch_bluesky(client),
+            _fetch_tiktok(client),
+            _fetch_youtube(client),
+            _fetch_newsapi(client),
             return_exceptions=True,
         )
-    hn = hn_res if isinstance(hn_res, list) else []
-    reddit = reddit_res if isinstance(reddit_res, list) else []
+    hn, reddit, github, wikipedia, mastodon, bluesky, tiktok, youtube, newsapi = [
+        r if isinstance(r, list) else [] for r in results
+    ]
 
     loop = asyncio.get_event_loop()
     google = await loop.run_in_executor(None, _fetch_google_trends_sync)
 
-    trends = _aggregate_trends(hn, reddit, google)
+    trends = _aggregate_trends(hn, reddit, google, github, wikipedia, mastodon, bluesky, tiktok, youtube, newsapi)
     _save_trends(trends)
     _last_trends_time = datetime.now(timezone.utc)
+
+    # Task 26: Write history snapshot, trim entries older than 48h
+    try:
+        now_iso = datetime.now(timezone.utc).isoformat()
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
+        with db() as conn:
+            conn.execute('DELETE FROM trend_history WHERE recorded_at < ?', (cutoff,))
+            for t in trends[:30]:
+                conn.execute(
+                    'INSERT INTO trend_history (topic, platform, composite_score, velocity, signals, recorded_at) VALUES (?,?,?,?,?,?)',
+                    (t['topic'], t.get('primary_platform', ''), t.get('composite_score', 0),
+                     t.get('velocity', ''), t.get('signals', 0), now_iso),
+                )
+            conn.commit()
+    except Exception:
+        pass
+
     return trends
 
 
@@ -697,9 +958,10 @@ _TAG_RULES: list[tuple[str, re.Pattern]] = [
 
 
 def classify_tags(headline: str, summary: str) -> list[str]:
+    # Task 24: Cap at 3 tags, priority order already matches _TAG_RULES definition order
     text = f'{headline} {summary}'
     tags = [tag for tag, pattern in _TAG_RULES if pattern.search(text)]
-    return tags if tags else ['General']
+    return tags[:3] if tags else ['General']
 
 
 def human_reason(freshness: float, source_count: int, group_size: int, age_minutes: int, bucket: str) -> str:
@@ -755,6 +1017,10 @@ async def fetch_feed_async(name: str, url: str) -> list:
 
             # Task 10: Skip digest/roundup entries
             if _DIGEST_PATTERN.search(title):
+                continue
+
+            # Task 21: Skip promotional/sponsored content
+            if _AD_PATTERN.search(title):
                 continue
 
             # Skip live blogs
@@ -1015,6 +1281,17 @@ async def _background_trends_loop():
 async def _startup():
     init_db()
     cleanup_old_stories()
+    # Task 30: Clear stale trend cache on startup (prevents old env data from being served)
+    try:
+        _, fetched_at = _load_trends()
+        if fetched_at:
+            age_secs = (datetime.now(timezone.utc) - dtparser.parse(fetched_at)).total_seconds()
+            if age_secs > 86400:  # older than 24 hours
+                with db() as conn:
+                    conn.execute('DELETE FROM trend_cache')
+                    conn.commit()
+    except Exception:
+        pass
     try:
         await refresh_cache_async()
     except Exception:
@@ -1226,12 +1503,69 @@ async def api_trends():
             if not trends:
                 trends = []
                 fetched_at = None
-    active_sources = ['HackerNews', 'Reddit']
-    if _PYTRENDS_AVAILABLE:
-        active_sources.append('Google Trends')
+    active_sources = list({t.get('primary_platform', '') for t in trends if t.get('primary_platform')})
     return JSONResponse({
         'trends': trends,
         'as_of': fetched_at or datetime.now(timezone.utc).isoformat(),
-        'sources': active_sources,
+        'sources': sorted(active_sources),
         'count': len(trends),
     })
+
+
+@app.get('/api/trend-summary')
+async def api_trend_summary(topic: str = ''):
+    """Return a plain-English summary of why a topic is trending (Task 20)."""
+    if not topic:
+        return JSONResponse({'summary': ''})
+    trends, _ = _load_trends()
+    matched = None
+    norm_topic = _normalize_topic(topic)
+    for t in trends:
+        if fuzz.token_set_ratio(norm_topic, _normalize_topic(t['topic'])) >= 75:
+            matched = t
+            break
+    if not matched:
+        return JSONResponse({'summary': f'No trend data found for "{topic}".'})
+    platform_info = ', '.join(matched.get('platforms', []))
+    vel = matched.get('velocity', 'STEADY').lower()
+    score = matched.get('composite_score', 0)
+    signals = matched.get('signals', 0)
+    cats = ', '.join(matched.get('categories', ['General']))
+    age = matched.get('age_label', 'recently')
+    cross = matched.get('cross_platform_count', 1)
+    summary = (
+        f'"{matched["topic"]}" is currently {vel} on {platform_info}. '
+        f'First detected {age} with {signals:,} engagement signals across '
+        f'{cross} platform{"s" if cross != 1 else ""}. '
+        f'Category: {cats}. Trending score: {round(score * 100)}%.'
+    )
+    if matched.get('subreddit'):
+        summary += f' Most active in {matched["subreddit"]}.'
+    return JSONResponse({
+        'summary': summary,
+        'topic': matched['topic'],
+        'velocity': matched.get('velocity', ''),
+        'platforms': matched.get('platforms', []),
+    })
+
+
+@app.get('/api/trend-history')
+async def api_trend_history(topic: str = ''):
+    """Return score/velocity history for a topic over the past 48h (Task 26)."""
+    if not topic:
+        return JSONResponse({'history': []})
+    try:
+        with db() as conn:
+            rows = conn.execute(
+                'SELECT composite_score, signals, velocity, recorded_at FROM trend_history '
+                'WHERE topic = ? ORDER BY recorded_at ASC',
+                (topic,),
+            ).fetchall()
+        history = [
+            {'composite_score': r['composite_score'], 'signals': r['signals'],
+             'velocity': r['velocity'], 'recorded_at': r['recorded_at']}
+            for r in rows
+        ]
+    except Exception:
+        history = []
+    return JSONResponse({'history': history, 'topic': topic})

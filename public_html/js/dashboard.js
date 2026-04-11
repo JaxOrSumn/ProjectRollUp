@@ -296,7 +296,7 @@ function renderFeed() {
 
     const isPinned     = pinnedIds.includes(story.id);
     const sourceDisplay= story.source || 'Unknown';
-    const storyTags    = story.tags || [];
+    const storyTags    = (story.tags || []).slice(0, 3); // Task 24: cap at 3
     const cardTagsHTML = storyTags.length
       ? `<div class="card-tags">${storyTags.map(t => `<span class="tag-chip ${TAG_COLORS[t] || ''}">${escapeHtml(t)}</span>`).join('')}</div>`
       : '';
@@ -613,6 +613,11 @@ async function openBriefing(id) {
     <div class="briefing-headline">${escapeHtml(headline)}</div>
     <div class="briefing-divider"></div>
 
+    <div class="briefing-section" style="display:flex;align-items:center;gap:12px;">
+      <span class="strength-badge ${escapeHtml(strength.cls)}">${escapeHtml(strength.label)}</span>
+      <span style="color:var(--color-slate);font-size:11px;font-family:var(--font-mono);">${Math.round((story.confidence||0)*100)}% confidence</span>
+    </div>
+
     <div class="briefing-section">
       <div class="briefing-label">SIGNAL RANKING:</div>
       <div class="rank-reason-row">${reasonHTML}</div>
@@ -751,10 +756,16 @@ async function refresh() {
 
 // ── Trends ───────────────────────────────────────────────
 
-let trendsData   = [];
-let trendsLoaded = false;
-let trendCatFilter = 'all';
-let trendVelFilter = 'all';
+let trendsData        = [];
+let trendsLoaded      = false;
+let trendCatFilter    = 'all';
+let trendVelFilter    = 'all';
+let trendsSearchQuery = '';
+let _trendCountdownTimer = null;
+const TRENDS_REFRESH_SECS = 1200;
+
+// Task 20: Cache for trend summaries (topic → summary text)
+const trendSummaryCache = {};
 
 const VEL_LABELS = {
   ACCELERATING: '↑ RISING',
@@ -763,8 +774,30 @@ const VEL_LABELS = {
   FADING:       '↓ FADING',
 };
 
-const PLATFORM_SHORT = { 'HackerNews': 'HN', 'Reddit': 'Reddit', 'Google Trends': 'Google' };
-const PLATFORM_CLASS  = { 'HackerNews': 'pb-hn', 'Reddit': 'pb-reddit', 'Google Trends': 'pb-google' };
+const PLATFORM_SHORT = {
+  'HackerNews':    'HN',
+  'Reddit':        'Reddit',
+  'Google Trends': 'Google',
+  'GitHub':        'GitHub',
+  'Wikipedia':     'Wiki',
+  'Mastodon':      'Mastodon',
+  'Bluesky':       'Bluesky',
+  'TikTok':        'TikTok',
+  'YouTube':       'YouTube',
+  'NewsAPI':       'NewsAPI',
+};
+const PLATFORM_CLASS = {
+  'HackerNews':    'pb-hn',
+  'Reddit':        'pb-reddit',
+  'Google Trends': 'pb-google',
+  'GitHub':        'pb-github',
+  'Wikipedia':     'pb-wiki',
+  'Mastodon':      'pb-mastodon',
+  'Bluesky':       'pb-bluesky',
+  'TikTok':        'pb-tiktok',
+  'YouTube':       'pb-youtube',
+  'NewsAPI':       'pb-newsapi',
+};
 
 function trendAgo(minutes) {
   if (minutes <= 0)    return 'just now';
@@ -777,8 +810,98 @@ function filteredTrends() {
   return trendsData.filter(t => {
     if (trendCatFilter !== 'all' && !(t.categories || []).includes(trendCatFilter)) return false;
     if (trendVelFilter !== 'all' && t.velocity !== trendVelFilter) return false;
+    if (trendsSearchQuery) {
+      const hay = [t.topic, ...(t.categories || []), ...(t.platforms || []), t.subreddit || '']
+        .join(' ').toLowerCase();
+      if (!hay.includes(trendsSearchQuery)) return false;
+    }
     return true;
   });
+}
+
+// Task 29: Trend search handlers
+function onTrendSearch(val) {
+  trendsSearchQuery = val.trim().toLowerCase();
+  const clr = document.getElementById('trend-search-clear');
+  if (clr) clr.style.display = trendsSearchQuery ? 'inline-block' : 'none';
+  renderTrends();
+}
+
+function clearTrendSearch() {
+  trendsSearchQuery = '';
+  const inp = document.getElementById('trend-search-input');
+  if (inp) inp.value = '';
+  const clr = document.getElementById('trend-search-clear');
+  if (clr) clr.style.display = 'none';
+  renderTrends();
+}
+
+// Task 26: Sparkline helpers
+function _scoreToBar(score) {
+  const bars = ['▁','▂','▃','▄','▅','▆','▇','█'];
+  return bars[Math.min(7, Math.floor((score || 0) * 8))];
+}
+
+function buildSparkline(history) {
+  if (!history || !history.length) return '';
+  return history.map(h => _scoreToBar(h.composite_score)).join('');
+}
+
+// Task 20: Toggle trend summary panel
+async function toggleTrendSummary(topic, cardEl) {
+  const existing = cardEl.querySelector('.trend-summary-box');
+  if (existing) { existing.remove(); return; }
+
+  const box = document.createElement('div');
+  box.className = 'trend-summary-box';
+  box.innerHTML = '<span style="color:var(--color-slate);font-size:11px;">Loading summary…</span>';
+  cardEl.appendChild(box);
+
+  if (trendSummaryCache[topic]) {
+    box.innerHTML = renderTrendSummaryHTML(trendSummaryCache[topic]);
+    return;
+  }
+  try {
+    const [sumRes, histRes] = await Promise.all([
+      fetch(`${API_BASE}/api/trend-summary?topic=${encodeURIComponent(topic)}`),
+      fetch(`${API_BASE}/api/trend-history?topic=${encodeURIComponent(topic)}`),
+    ]);
+    const sumData  = await sumRes.json();
+    const histData = await histRes.json();
+    const sparkline = buildSparkline(histData.history || []);
+    const payload = { summary: sumData.summary || '', sparkline };
+    trendSummaryCache[topic] = payload;
+    box.innerHTML = renderTrendSummaryHTML(payload);
+  } catch (err) {
+    box.innerHTML = `<span style="color:var(--color-warning);font-size:11px;">Could not load summary.</span>`;
+  }
+}
+
+function renderTrendSummaryHTML({ summary, sparkline }) {
+  return `
+    <div class="trend-summary-text">${escapeHtml(summary)}</div>
+    ${sparkline ? `<div class="trend-sparkline" title="Score trend (48h)">${escapeHtml(sparkline)}</div>` : ''}
+    <button class="btn btn-ghost btn-xs" style="margin-top:6px;font-size:8px;" onclick="this.closest('.trend-summary-box').remove()">CLOSE SUMMARY</button>
+  `;
+}
+
+// Task 25: Trends auto-refresh countdown
+function startTrendsCountdown() {
+  if (_trendCountdownTimer) clearInterval(_trendCountdownTimer);
+  let secs = TRENDS_REFRESH_SECS;
+  _trendCountdownTimer = setInterval(() => {
+    secs--;
+    const el = document.getElementById('trends-countdown');
+    if (el) {
+      const m = Math.floor(secs / 60);
+      const s = String(secs % 60).padStart(2, '0');
+      el.textContent = `NEXT REFRESH: ${m}m ${s}s`;
+    }
+    if (secs <= 0) {
+      clearInterval(_trendCountdownTimer);
+      loadTrends(true);
+    }
+  }, 1000);
 }
 
 function countRelated(topic) {
@@ -800,8 +923,9 @@ function renderTrends() {
     return;
   }
 
-  grid.innerHTML = list.map(t => {
-    const cats = (t.categories || []).map(c =>
+  grid.innerHTML = list.map((t, idx) => {
+    // Task 24: cap categories at 3
+    const cats = (t.categories || []).slice(0, 3).map(c =>
       `<span class="tag-chip ${TAG_COLORS[c] || 'tag-general'}">${escapeHtml(c)}</span>`
     ).join('');
     const platforms = (t.platforms || []).map(p =>
@@ -809,13 +933,18 @@ function renderTrends() {
     ).join('');
     const related    = countRelated(t.topic);
     const relatedBtn = related > 0
-      ? `<button class="btn btn-ghost btn-xs" onclick="trendsToFeed(${JSON.stringify(t.topic)})" style="font-size:8px;">${related} IN FEED →</button>`
+      ? `<button class="btn btn-ghost btn-xs" onclick="event.stopPropagation();trendsToFeed(${JSON.stringify(t.topic)})" style="font-size:8px;">${related} IN FEED →</button>`
       : '';
     const sub = t.subreddit
       ? `<span class="corr-source">${escapeHtml(t.subreddit)}</span>`
       : '';
+    // Task 23: validate URL before rendering link
+    const validUrl = t.url && t.url.startsWith('http') ? t.url : null;
+    const linkHTML = validUrl
+      ? `<a class="trend-link" href="${escapeHtml(validUrl)}" target="_blank" rel="noopener noreferrer">VIEW ON ${escapeHtml((t.primary_platform || '').toUpperCase())} →</a>`
+      : '';
     return `
-      <div class="trend-card">
+      <div class="trend-card" id="trend-card-${idx}" onclick="toggleTrendSummary(${JSON.stringify(t.topic)}, this)">
         <div class="trend-card-top">
           <span class="vel-badge vel-${escapeHtml(t.velocity)}">${escapeHtml(VEL_LABELS[t.velocity] || t.velocity)}</span>
           <div style="display:flex;gap:4px;flex-wrap:wrap;">${cats}</div>
@@ -831,9 +960,7 @@ function renderTrends() {
           <span>${t.cross_platform_count} platform${t.cross_platform_count !== 1 ? 's' : ''}</span>
         </div>
         <div class="trend-footer">
-          <a class="trend-link" href="${escapeHtml(t.url)}" target="_blank" rel="noopener noreferrer">
-            VIEW ON ${escapeHtml((t.primary_platform || '').toUpperCase())} →
-          </a>
+          ${linkHTML}
           ${relatedBtn}
         </div>
       </div>`;
@@ -865,7 +992,10 @@ async function loadTrends(force = false) {
     if (srcEl && data.sources)
       srcEl.textContent = `| ${data.sources.join(', ')}`;
     renderTrends();
+    startTrendsCountdown();
   } catch (err) {
+    const cdEl = document.getElementById('trends-countdown');
+    if (cdEl) cdEl.textContent = 'REFRESH FAILED';
     if (grid) grid.innerHTML = `<p style="color:var(--color-warning);text-align:center;padding:24px 16px;">Could not load trends: ${escapeHtml(err.message)}</p>`;
   }
 }
@@ -880,6 +1010,8 @@ function trendsToFeed(topic) {
     if (clr) clr.style.display = 'inline-block';
   }
   renderFeed();
+  // Task 23: scroll to top of feed after switching
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function switchTab(tab) {

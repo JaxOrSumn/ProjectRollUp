@@ -183,6 +183,18 @@
       <button class="btn btn-ghost btn-xs" onclick="loadTrends(true)" style="margin-left:8px;">REFRESH</button>
       <span class="trends-count mono" id="trends-count"></span>
       <span class="trends-count mono" id="trends-sources"></span>
+      <span class="trends-count mono" id="trends-countdown"></span>
+      <div class="filter-sep"></div>
+      <input
+        type="text"
+        id="trend-search-input"
+        class="search-input"
+        placeholder="SEARCH TRENDS..."
+        autocomplete="off"
+        oninput="onTrendSearch(this.value)"
+        style="width:160px;"
+      >
+      <button class="search-clear" id="trend-search-clear" onclick="clearTrendSearch()" style="display:none;">&#x2715;</button>
     </div>
 
     <div style="padding:16px 24px;">

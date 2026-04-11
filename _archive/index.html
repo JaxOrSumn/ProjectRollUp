@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang='en'>
+<head>
+  <meta charset='utf-8' />
+  <meta name='viewport' content='width=device-width, initial-scale=1' />
+  <title>Project RollUp</title>
+  <link rel="stylesheet" href="/web/styles.css" />
+</head>
+<body>
+  <div class='appShell'>
+    <header class='topBar'>
+      <div>
+        <div class='eyebrow'>PROJECT ROLLUP</div>
+        <h1 class='siteTitle'>News, surfaced cleanly</h1>
+        <p class='siteMeta'>100+ distinct headlines • deduped sources • readable summaries • live timestamps</p>
+      </div>
+      <div class='topBarRight'>
+        <div class='statusPill' id='status'>Loading…</div>
+        <button class='btnGhost' id='refreshBtn' type='button'>Refresh</button>
+      </div>
+    </header>
+
+    <nav class='tabNav' aria-label='Main tabs'>
+      <button class='tabBtn active' id='tabNews' data-tab='news' type='button'>News Feed</button>
+      <button class='tabBtn' id='tabTrends' data-tab='trends' type='button'>Trends</button>
+    </nav>
+
+    <div id='newsView'>
+      <nav class='toolbar' aria-label='News controls'>
+        <input id='searchInput' class='searchInput' type='search' placeholder='Search headlines, sources, topics' />
+        <select id='sourceFilter' class='selectInput' aria-label='Filter by source'>
+          <option value='all'>All sources</option>
+        </select>
+        <select id='sortSelect' class='selectInput' aria-label='Sort stories'>
+          <option value='rank'>Top ranked</option>
+          <option value='time'>Newest first</option>
+          <option value='source'>Source count</option>
+        </select>
+        <button class='btnGhost' id='moreBtn' type='button'>Load more</button>
+        <div class='toolbarNote' id='resultCount'>0 headlines</div>
+      </nav>
+
+      <main class='mainGrid'>
+        <section class='storiesPanel' aria-label='Headline feed'>
+          <div class='storiesHeader'>
+            <div>
+              <h2 class='sectionTitle'>Headlines</h2>
+              <div class='sectionHint'>Click a headline to open the fact-based write-up. Use arrow keys to move through items.</div>
+            </div>
+            <div class='sectionHint' id='windowInfo'></div>
+          </div>
+          <div class='storyListWrap' id='storyListWrap'>
+            <div class='storyList' id='storyList'></div>
+          </div>
+        </section>
+
+        <aside class='detailPanel' aria-label='Selected story details'>
+          <div class='detailCard' id='detailCard'>
+            <div class='detailKicker'>SELECTED STORY</div>
+            <h3 class='detailTitle' id='detailTitle'>Choose a headline</h3>
+            <div class='detailMeta' id='detailMeta'>The selection detail will appear here.</div>
+            <p class='detailSummary' id='detailSummary'>Select a headline to see a concise, fact-based write-up based on available feed text and article content when available.</p>
+            <div class='detailActions'>
+              <button class='btnPrimary' id='openSummaryBtn' type='button' disabled>Open write-up</button>
+              <button class='btnGhost' id='toggleCompactBtn' type='button'>Toggle compact cards</button>
+            </div>
+            <div class='detailFacts' id='detailFacts'></div>
+          </div>
+        </aside>
+      </main>
+    </div>
+
+    <div id='trendsView' hidden>
+      <nav class='toolbar trendsToolbar' aria-label='Trends controls'>
+        <select id='trendCategoryFilter' class='selectInput' aria-label='Filter by category'>
+          <option value='all'>All categories</option>
+          <option value='Tech'>Tech</option>
+          <option value='Geopolitics'>Geopolitics</option>
+          <option value='Economic'>Economic</option>
+          <option value='Scientific Reports'>Scientific</option>
+          <option value='Celebrity News'>Entertainment</option>
+          <option value='General'>General</option>
+        </select>
+        <select id='trendVelocityFilter' class='selectInput' aria-label='Filter by velocity'>
+          <option value='all'>All velocities</option>
+          <option value='ACCELERATING'>Accelerating</option>
+          <option value='PEAKING'>Peaking</option>
+          <option value='STEADY'>Steady</option>
+          <option value='FADING'>Fading</option>
+        </select>
+        <button class='btnGhost' id='trendRefreshBtn' type='button'>Refresh</button>
+        <div class='toolbarNote' id='trendCount'>0 trends</div>
+        <div class='toolbarNote' id='trendSources'></div>
+      </nav>
+
+      <section class='trendsPanel' aria-label='Trending topics'>
+        <div class='trendsHeader'>
+          <div>
+            <h2 class='sectionTitle'>Internet Trends</h2>
+            <div class='sectionHint'>Aggregated from HackerNews, Reddit &amp; Google Trends · Refreshes every 20 min</div>
+          </div>
+          <div class='sectionHint' id='trendAsOf'></div>
+        </div>
+        <div class='trendList' id='trendList'><div class='loadState'>Switch to this tab to load trends.</div></div>
+      </section>
+    </div>
+  </div>
+
+  <aside class='globeWidget' id='globeWidget' aria-hidden='true'>
+    <div class='globeFrame'>
+      <div class='globeRing'>
+        <svg class='globeSvg' viewBox='0 0 160 160' aria-hidden='true'>
+          <defs>
+            <clipPath id='globeClip'><circle cx='80' cy='80' r='78' /></clipPath>
+            <radialGradient id='glowfade' cx='50%' cy='44%' r='62%'>
+              <stop offset='0%' stop-color='rgba(0,255,102,.18)' />
+              <stop offset='58%' stop-color='rgba(0,255,102,.04)' />
+              <stop offset='100%' stop-color='rgba(0,0,0,.1)' />
+            </radialGradient>
+          </defs>
+          <g clip-path='url(#globeClip)'>
+            <rect x='0' y='0' width='160' height='160' fill='rgba(0,0,0,.35)' />
+            <circle class='orbit' id='orbitPath' cx='80' cy='80' r='62' />
+            <circle class='gridline' cx='80' cy='80' r='62' />
+            <ellipse class='equator' cx='80' cy='80' rx='62' ry='20' />
+            <ellipse class='meridian' cx='80' cy='80' rx='20' ry='62' transform='rotate(18 80 80)' />
+            <ellipse class='meridian' cx='80' cy='80' rx='20' ry='62' transform='rotate(-18 80 80)' />
+            <path class='landmass' d='M36 58 46 52 62 54 69 67 60 77 50 75 40 68z' />
+            <path class='landmass' d='M92 42 104 39 118 49 114 61 101 63 92 55z' />
+            <path class='landmass' d='M87 92 99 89 110 97 107 111 93 114 85 103z' />
+            <circle class='marker' id='markerDot' cx='80' cy='80' r='3.8' />
+            <rect x='0' y='0' width='160' height='160' fill='url(#glowfade)' opacity='.35' />
+          </g>
+        </svg>
+      </div>
+      <div class='globeLabel' id='globeLabel'>LOCATION UNKNOWN</div>
+      <div class='globeStatus' id='globeStatus'>SIGNAL UNCLEAR</div>
+    </div>
+  </aside>
+
+  <div class='summaryModal' id='summaryModal' aria-hidden='true'>
+    <div class='summaryCard' role='dialog' aria-modal='true' aria-labelledby='summaryTitle'>
+      <div class='summaryHead'>
+        <div>
+          <div class='summaryKicker'>FACT-BASED WRITE-UP</div>
+          <div class='summaryTitle' id='summaryTitle'>Summary</div>
+          <div class='summaryMeta' id='summaryMeta'></div>
+        </div>
+        <button class='summaryClose' id='summaryClose' type='button'>Close</button>
+      </div>
+      <div class='summaryBody' id='summaryBody'>Loading…</div>
+    </div>
+  </div>
+
+  <script src="/web/script.js"></script>
+</body>
+</html>

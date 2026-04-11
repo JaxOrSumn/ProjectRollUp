@@ -1,37 +1,52 @@
-Project RollUp — future agent context
+Project RollUp — Future Agent Context
 
-What was built
-- News aggregation site with CRT-green styling and a bottom-right globe widget.
-- Headline cards show title, source, timestamp, source count, inferred location, summary, and score.
-- Clicking a headline opens a fact-based write-up modal.
-- The globe infers location from structured metadata first, then headline/summary/body text, with confidence scoring and safe fallback.
-- The backend extracts feed excerpts and article page text when possible and caps summaries at 400 words.
-- The site guarantees at least 100 distinct headlines by expanding the time window, using backup feeds, and then falling back to older clearly labeled items.
+## Live file locations
 
-Important files in the live site
-- /data/.openclaw/workspace/project-rollup-live/app.py
-- /data/.openclaw/workspace/project-rollup-live/index.html
-- /data/.openclaw/workspace/project-rollup-live/script.js
-- /data/.openclaw/workspace/project-rollup-live/styles.css
+- Backend:         app.py  (FastAPI, Python)
+- Frontend HTML:   public_html/index.html
+- Frontend JS:     public_html/js/dashboard.js, filters.js, globe.js, data.js, utils.js
+- Frontend CSS:    public_html/css/base.css, layout.css, components.css, animations.css
+- DB (local only): project_rollup.db  (SQLite — never commit or deploy)
+- To-Do queue:     To-Do List.md
 
-Important deployment note
-- The live site in use is the root-level set of files, not /web.
-- There was confusion about /web vs public_html. The user asked to use public_html as replacement.
-- A public_html directory was created and populated from the root live files for packaging/sharing.
+## Archived / legacy files
 
-Recent notable fixes
-- Removed a stray syntax residue from app.py that caused py_compile to fail.
-- Improved card hierarchy and reduced-motion behavior.
-- Verified JS syntax with node --check.
-- Verified app.py compiles after the fix.
+- _archive/index.html, _archive/styles.css, _archive/script.js
+  These are an older, simpler CRT-green version of the frontend.
+  They are NOT served in production. Edit only public_html/ for any live changes.
 
-Telegram delivery
-- Final release zip was sent to Telegram several times during the workflow.
+## Architecture
 
-If rebuilding from scratch
-1. Use the root-level files first.
-2. Keep the 100-headline guarantee logic intact.
-3. Preserve the globe widget and the write-up modal.
-4. Keep the green CRT aesthetic subtle and readable.
-5. Make sure mobile hides the globe entirely.
-6. Re-run syntax checks before packaging.
+- FastAPI backend serves public_html/ as the frontend.
+- News refresh: every 5 minutes via background task.
+- Trends refresh: every 20 minutes via background task (staggered 30s after startup).
+- SQLite cache: stories table + trend_cache table + trend_history table + source_locations table.
+- On startup: stale trend_cache entries older than 24h are automatically cleared.
+
+## Trend sources (as of latest session)
+
+Active always (no key required):
+  HackerNews, Reddit, GitHub Trending, Wikipedia Current Events, Mastodon, Bluesky, TikTok
+
+Optional (require env vars):
+  Google Trends → pytrends library must be installed
+  YouTube       → YOUTUBE_API_KEY env var
+  NewsAPI       → NEWSAPI_KEY env var
+
+## Key design rules
+
+- public_html/ uses JetBrains Mono + Inter, dark surfaces (#0b0f0b), military aesthetic.
+- Do not make major UX changes — match existing aesthetic when adding features.
+- New UI elements should use existing CSS variables and button/pill styles.
+- The .gitignore excludes project_rollup.db, __pycache__, *.pyc, _preview_server.py.
+
+## Deployment
+
+- Hosted on Render. The DB is regenerated on each cold start.
+- Do not commit project_rollup.db.
+- _preview_server.py is dev-only — do not deploy.
+
+## Syntax checks before pushing
+
+- Python: py_compile app.py
+- JS:     node --check public_html/js/dashboard.js
