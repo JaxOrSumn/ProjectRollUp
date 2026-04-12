@@ -918,50 +918,101 @@ def trim_words(text: str, limit: int = SUMMARY_WORDS) -> str:
 
 
 _TAG_RULES: list[tuple[str, re.Pattern]] = [
-    ('Geopolitics', re.compile(
-        r'war|conflict|military|sanction|diplomatic|ceasefire|treaty|nato|un |united nations|'
-        r'government|election|president|minister|prime minister|border|nuclear|crisis|'
-        r'troops|invasion|occupation|sovereignty|referendum|coup|protest|rally|'
-        r'foreign policy|bilateral|multilateral|ambassador|embassy|regime',
+    ('Breaking', re.compile(
+        r'breaking|just in|developing|urgent|alert|emergency|flash|live:|happening now|'
+        r'breaking news|exclusive:|update:|first reported',
+        re.I)),
+    ('Politics', re.compile(
+        r'congress|senate|parliament|democrat|republican|legislation|bill |vote|election|'
+        r'president|prime minister|white house|administration|cabinet|policy|political|'
+        r'campaign|referendum|governor|mayor|lobbyist|filibuster|impeach|ballot|party|'
+        r'lawmaker|bipartisan|veto|executive order|supreme court',
+        re.I)),
+    ('World', re.compile(
+        r'war|conflict|invasion|ceasefire|treaty|nato|united nations|un |diplomat|sanction|'
+        r'foreign|bilateral|multilateral|ambassador|embassy|regime|coup|sovereignty|'
+        r'troops|nuclear|geopoliti|international|global|overseas|abroad|europe|asia|'
+        r'middle east|africa|latin america|pacific|ukraine|russia|china|iran|israel|'
+        r'taiwan|north korea|nato|g7|g20',
+        re.I)),
+    ('National', re.compile(
+        r'federal|nationwide|domestic|homeland|u\.s\.|united states|america|washington d\.c\.|'
+        r'department of|national security|border|immigration|nsa|fbi|cia|dhs|pentagon|'
+        r'state department|treasury|federal reserve|\bfed\b|infrastructure|interstate',
+        re.I)),
+    ('Local', re.compile(
+        r'city council|county|municipality|local government|mayor|neighborhood|precinct|'
+        r'district|township|school board|zoning|ordinance|local police|fire department|'
+        r'community|residents|metro area|downtown|suburb',
+        re.I)),
+    ('Business', re.compile(
+        r'economy|market|trade|inflation|gdp|interest rate|federal reserve|central bank|'
+        r'finance|stock|investment|recession|tariff|deficit|unemployment|supply chain|'
+        r'oil price|energy price|imf|world bank|debt|budget|export|import|wage|revenue|'
+        r'earnings|profit|merger|acquisition|ipo|startup|venture|hedge fund|quarter|'
+        r'dow|nasdaq|s&p|cryptocurrency|bitcoin|forex|commodity',
         re.I)),
     ('Tech', re.compile(
         r'technolog|artificial intelligence|\bai\b|machine learning|software|hardware|'
-        r'startup|silicon|cyber|digital|algorithm|semiconductor|chip|data breach|'
-        r'smartphone|app |platform|cloud|quantum|robot|automation|bitcoin|crypto|'
-        r'elon musk|meta |google|apple |microsoft|amazon|openai|nvidia',
+        r'silicon|cyber|digital|algorithm|semiconductor|chip|data breach|smartphone|'
+        r'cloud|quantum|robot|automation|openai|nvidia|google|apple |microsoft|amazon|'
+        r'meta |elon musk|social media platform|app store|5g|deepfake|cybersecurity|hack',
         re.I)),
-    ('Economic', re.compile(
-        r'economy|econom|market|trade|inflation|gdp|interest rate|\bfed\b|federal reserve|'
-        r'central bank|finance|currency|stock|investment|recession|tariff|deficit|'
-        r'unemployment|supply chain|oil price|energy price|imf|world bank|debt|budget|'
-        r'export|import|manufacturing|labour market|wage',
+    ('Science', re.compile(
+        r'research|study|scientis|discovery|nasa|space|fossil|asteroid|telescope|'
+        r'physics|biology|chemistry|neuroscien|experiment|trial|findings|published in|'
+        r'journal|genome|species|evolution|climate change|carbon|emissions|environment|'
+        r'ocean|atmosphere|geology|quantum|particle|astrophysic',
         re.I)),
-    ('Scientific Reports', re.compile(
-        r'research|study|scientis|climate|species|discovery|nasa|space|'
-        r'health|medical|virus|vaccine|genome|cancer|disease|pandemic|'
-        r'fossil|asteroid|telescope|physics|biology|chemistry|neuroscien|'
-        r'experiment|trial|findings|published in|journal',
+    ('Health', re.compile(
+        r'health|medical|virus|vaccine|cancer|disease|pandemic|epidemic|hospital|'
+        r'surgery|drug|pharmaceutical|fda|cdc|who |mental health|therapy|clinical|'
+        r'patient|diagnosis|treatment|outbreak|public health|obesity|alzheimer|'
+        r'nutrition|fitness|prescription|medication|overdose',
         re.I)),
-    ('Media', re.compile(
-        r'journalist|press|news outlet|broadcast|social media|censorship|'
-        r'freedom of press|media outlet|newspaper|television|podcast|'
-        r'disinformation|misinformation|propaganda|editorial|newsroom|'
-        r'twitter|x\.com|tiktok|instagram|facebook|youtube|streaming',
+    ('Crime', re.compile(
+        r'murder|arrest|trial|convicted|sentenced|prison|jail|shooting|stabbing|'
+        r'robbery|fraud|indicted|charged|suspect|investigation|detective|police|'
+        r'homicide|assault|trafficking|cartel|gang|drug bust|organized crime|'
+        r'cybercrime|scam|embezzle|corrupt|bribery|laundering',
         re.I)),
-    ('Celebrity News', re.compile(
-        r'celebrity|actor|actress|entertainer|hollywood|music|album|tour|'
-        r'award|oscar|grammy|emmy|bafta|pop star|singer|rapper|film star|'
-        r'box office|reality tv|scandal|divorce|engaged|married|pregnant|'
-        r'taylor swift|beyonce|kardashian|prince harry|meghan',
+    ('Defense', re.compile(
+        r'military|army|navy|air force|marines|pentagon|defense department|weapon|'
+        r'missile|drone|nuclear|warship|fighter jet|special forces|veteran|troop|'
+        r'battalion|deployment|arms deal|defense contract|intelligence agency|'
+        r'spy|surveillance|nsa|cia|classified|national security|warfare',
+        re.I)),
+    ('Climate', re.compile(
+        r'climate|global warming|carbon|emissions|greenhouse|fossil fuel|renewable|'
+        r'solar|wind power|flood|wildfire|hurricane|tornado|drought|sea level|'
+        r'glacier|arctic|deforestation|biodiversity|coral reef|pollution|epa|'
+        r'paris agreement|net zero|sustainability|extreme weather',
+        re.I)),
+    ('Entertainment', re.compile(
+        r'celebrity|actor|actress|hollywood|music|album|tour|award|oscar|grammy|emmy|'
+        r'bafta|pop star|singer|rapper|box office|reality tv|scandal|film|movie|'
+        r'streaming|netflix|disney|hbo|spotify|concert|festival|tv show|series|'
+        r'taylor swift|beyonce|kardashian|prince harry|meghan|red carpet',
+        re.I)),
+    ('Sports', re.compile(
+        r'nfl|nba|mlb|nhl|fifa|olympics|championship|tournament|playoff|league|'
+        r'athlete|coach|team|stadium|match|game|score|transfer|draft|trade|contract|'
+        r'world cup|super bowl|wimbledon|formula 1|\bf1\b|tennis|soccer|basketball|'
+        r'baseball|football|hockey|golf|boxing|ufc|mma',
+        re.I)),
+    ('Analysis', re.compile(
+        r'analysis|opinion|editorial|commentary|perspective|explainer|deep dive|'
+        r'investigation|report:|special report|in depth|why |how |what does|'
+        r'fact.?check|review|survey|poll|data shows|according to|experts say|'
+        r'breakdown|context|background|timeline',
         re.I)),
 ]
 
 
 def classify_tags(headline: str, summary: str) -> list[str]:
-    # Task 24: Cap at 3 tags, priority order already matches _TAG_RULES definition order
     text = f'{headline} {summary}'
     tags = [tag for tag, pattern in _TAG_RULES if pattern.search(text)]
-    return tags[:3] if tags else ['General']
+    return tags[:3] if tags else ['Analysis']
 
 
 def human_reason(freshness: float, source_count: int, group_size: int, age_minutes: int, bucket: str) -> str:
