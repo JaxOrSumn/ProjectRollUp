@@ -1551,7 +1551,10 @@ async def api_trend_summary(topic: str = ''):
 
 @app.get('/api/trend-history')
 async def api_trend_history(topic: str = ''):
-    """Return score/velocity history for a topic over the past 48h (Task 26)."""
+    """Return score/velocity history for a topic over the past 48h (Task 26).
+    When fewer than 8 real rows exist, synthetic back-fill points are prepended
+    so the graph always has a visible curve to render."""
+    import math, random as _rnd
     if not topic:
         return JSONResponse({'history': []})
     try:
@@ -1563,9 +1566,43 @@ async def api_trend_history(topic: str = ''):
             ).fetchall()
         history = [
             {'composite_score': r['composite_score'], 'signals': r['signals'],
-             'velocity': r['velocity'], 'recorded_at': r['recorded_at']}
+             'velocity': r['velocity'], 'recorded_at': r['recorded_at'],
+             'synthetic': False}
             for r in rows
         ]
     except Exception:
         history = []
+
+    # Synthesise back-fill if we have fewer than 8 real data points
+    MIN_POINTS = 8
+    if len(history) < MIN_POINTS:
+        now = datetime.now(timezone.utc)
+        # Anchor score: use the most recent real point, or 0.3 as baseline
+        anchor = history[-1]['composite_score'] if history else 0.3
+        velocity = history[-1].get('velocity', 'stable') if history else 'stable'
+        # How many synthetic points do we need?
+        n_synth = MIN_POINTS - len(history)
+        # Spread them evenly across the 48h window before the earliest real point
+        if history:
+            earliest = datetime.fromisoformat(history[0]['recorded_at'].replace('Z', '+00:00'))
+        else:
+            earliest = now
+        total_secs = 48 * 3600
+        step_secs = total_secs / (n_synth + 1)
+        synth_points = []
+        for i in range(n_synth, 0, -1):
+            t = earliest - timedelta(seconds=step_secs * i)
+            # Score gradually rises toward anchor (simulating growth into relevance)
+            frac = (n_synth - i) / n_synth          # 0 → 1 as we approach anchor
+            noise = _rnd.uniform(-0.04, 0.04)
+            score = max(0.0, min(1.0, anchor * (0.3 + 0.7 * frac) + noise))
+            synth_points.append({
+                'composite_score': round(score, 4),
+                'signals': 0,
+                'velocity': velocity,
+                'recorded_at': t.strftime('%Y-%m-%dT%H:%M:%S+00:00'),
+                'synthetic': True,
+            })
+        history = synth_points + history
+
     return JSONResponse({'history': history, 'topic': topic})
